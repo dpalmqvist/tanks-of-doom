@@ -98,7 +98,9 @@ extension MenuScene {
             lines.append(Line(text: "BEST RUN: \(HighScores.bestLevels) levels cleared, \(HighScores.bestKills) kills",
                               size: 20, color: .systemGreen, font: mono))
         }
-        // Task 9 replaces this closure body to start the game.
-        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO START") { _ in }
+        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO START") { scene in
+            let game = GameScene(size: scene.size, levelNumber: 1, runStats: RunStats())
+            scene.view?.presentScene(game, transition: .fade(withDuration: 0.6))
+        }
     }
 }

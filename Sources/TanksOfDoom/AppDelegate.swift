@@ -20,7 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
         NSApp.activate()
-        view.presentScene(MenuScene.title(size: frame.size))
+        // Developer shortcut: TANKS_START_LEVEL=<n> skips the title screen.
+        if let level = ProcessInfo.processInfo.environment["TANKS_START_LEVEL"].flatMap(Int.init), level > 0 {
+            view.presentScene(GameScene(size: frame.size, levelNumber: level, runStats: RunStats()))
+        } else {
+            view.presentScene(MenuScene.title(size: frame.size))
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

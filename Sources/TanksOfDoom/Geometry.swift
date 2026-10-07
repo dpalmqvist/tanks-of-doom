@@ -56,7 +56,7 @@ func normalizeAngle(_ angle: CGFloat) -> CGFloat {
 }
 
 /// Turns `current` toward `target` by at most `maxStep` radians.
-func rotate(_ current: CGFloat, toward target: CGFloat, maxStep: CGFloat) -> CGFloat {
+func rotateAngle(_ current: CGFloat, toward target: CGFloat, maxStep: CGFloat) -> CGFloat {
     let diff = normalizeAngle(target - current)
     if abs(diff) <= maxStep { return current + diff }
     return current + (diff > 0 ? maxStep : -maxStep)
