@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/cover.jpg" alt="The Herring War box art: the M-1 Grumbler tank charges through a burning Grimsborough on Rust" width="600">
+</p>
+
 # Tanks of Doom
 
 A top-down tank shooter for macOS, written in Swift with SpriteKit. Every level is a freshly generated, war-torn city. You have one tank, very little fuel, and no friends.
