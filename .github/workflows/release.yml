@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-15
+    runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
 
