@@ -16,8 +16,9 @@ final class GameScene: SKScene {
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
-    /// Everything the player can shoot. Tasks 11 and 12 add enemy tanks and infantry.
-    var hostiles: [Hostile] { [] }
+    var enemies: [EnemyTank] = []
+    /// Everything the player can shoot. Task 12 adds infantry.
+    var hostiles: [Hostile] { enemies }
 
     var input = InputState()
     var mouseInCamera = CGPoint.zero
@@ -77,6 +78,7 @@ final class GameScene: SKScene {
         playerTank.heading = .pi / 4
         playerTank.turretAngle = .pi / 4
         worldNode.addChild(playerTank)
+        spawnEnemies()
 
         addChild(cameraNode)
         camera = cameraNode
@@ -93,6 +95,7 @@ final class GameScene: SKScene {
         lastUpdate = currentTime
         updatePlayer(dt: dt)
         updatePlayerWeapons(dt: dt)
+        updateEnemies(dt: dt)
         updateProjectiles(dt: dt)
         updateMortars(dt: dt)
         updateCamera(dt: dt)

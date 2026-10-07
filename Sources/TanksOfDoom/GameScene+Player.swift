@@ -22,7 +22,7 @@ extension GameScene {
                 let speed = (drive > 0 ? PlayerTank.forwardSpeed : PlayerTank.reverseSpeed)
                     * CGFloat(map.speedMultiplier(at: playerTank.position.world))
                 let moved = playerTank.move(by: CGPoint(angle: playerTank.heading, length: drive * speed * CGFloat(dt)),
-                                            in: map, blockers: [])
+                                            in: map, blockers: enemies)
                 if moved > 0 {
                     moving = true
                     leaveTracks(playerTank, moved: moved)

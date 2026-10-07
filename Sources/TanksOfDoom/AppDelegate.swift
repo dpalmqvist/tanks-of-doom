@@ -17,13 +17,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.ignoresSiblingOrder = true
         window.contentView = view
         window.center()
-        window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-        NSApp.activate()
-        // Developer shortcut: TANKS_START_LEVEL=<n> skips the title screen.
+        // Developer shortcut: TANKS_START_LEVEL=<n> skips the title screen and opens the
+        // window in the background without taking keyboard focus.
         if let level = ProcessInfo.processInfo.environment["TANKS_START_LEVEL"].flatMap(Int.init), level > 0 {
+            window.orderFront(nil)
             view.presentScene(GameScene(size: frame.size, levelNumber: level, runStats: RunStats()))
         } else {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
             view.presentScene(MenuScene.title(size: frame.size))
         }
     }
