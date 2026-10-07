@@ -25,14 +25,28 @@ Clear a city and Command will airlift you to the next one. The next one is alway
 
 *The herring is out there. Somewhere.*
 
-## Requirements
+## Download and Play
+
+Ready-built versions are on the [Releases page](https://github.com/dpalmqvist/tanks-of-doom/releases/latest). They run on macOS 14 (Sonoma) or newer, on both Apple Silicon and Intel Macs.
+
+1. Download `TanksOfDoom-<version>-macOS.zip` and double-click it to unzip.
+2. Drag **Tanks of Doom** into your Applications folder.
+3. **The first time only:** the app isn't signed by an identified developer, so macOS blocks it. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**. You can also run this in Terminal:
+
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Tanks of Doom.app"
+   ```
+
+## Building from Source
+
+### Requirements
 
 - macOS 14 (Sonoma) or newer
 - Xcode 16 or newer (or a Swift 6 toolchain), for `swift build`
 
 There are no third-party dependencies and no asset files. All art and sound are generated in code when the game starts.
 
-## Build and Run
+### Build and Run
 
 ```bash
 git clone https://github.com/dpalmqvist/tanks-of-doom.git
@@ -92,3 +106,4 @@ Every level adds more enemy tanks with thicker armor, faster driving and quicker
   - `Sources/TanksCore/` holds the pure game logic, with no SpriteKit: seeded city generator, A* pathfinding, line of sight, weapon and damage rules, tank stats, enemy AI and target selection. It's covered by the tests in `Tests/TanksCoreTests/`.
   - `Sources/TanksOfDoom/` is the macOS app: window, SpriteKit scenes, tanks, soldiers, projectiles, HUD, minimap, procedural textures and synthesized sound.
 - **Design docs:** the design spec and implementation plan live in `docs/superpowers/`.
+- **Publishing a release:** push a version tag (`git tag v1.0.0 && git push origin v1.0.0`). The `Release` GitHub Actions workflow runs the tests, builds a universal `Tanks of Doom.app` with `scripts/package-app.sh`, and attaches the zip to a new GitHub release. Run `scripts/package-app.sh 1.0.0` to build the same zip locally in `dist/`.

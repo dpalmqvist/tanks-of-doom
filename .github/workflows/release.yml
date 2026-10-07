@@ -1,0 +1,42 @@
+name: Release
+
+# Push a version tag to publish a downloadable build:
+#   git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build and package app
+        run: scripts/package-app.sh "${GITHUB_REF_NAME}"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          ## Download and play (macOS 14 or newer, Apple Silicon or Intel)
+
+          1. Download **TanksOfDoom-*-macOS.zip** below and double-click it to unzip.
+          2. Drag **Tanks of Doom** into your Applications folder.
+          3. The first time only: the app isn't signed by an identified developer, so macOS will block it.
+             Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+             (Or run `xattr -dr com.apple.quarantine "/Applications/Tanks of Doom.app"` in Terminal.)
+
+          Press **Enter** on the title screen to start. Controls are in the [README](https://github.com/${{ github.repository }}#controls).
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/*.zip \
+            --title "Tanks of Doom ${GITHUB_REF_NAME}" \
+            --notes-file notes.md \
+            --generate-notes
