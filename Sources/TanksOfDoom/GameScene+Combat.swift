@@ -203,6 +203,7 @@ extension GameScene {
     }
 
     func buildingDestroyed(_ id: Int) {
+        killOccupants(of: id)
         let center = level.buildings[id].worldCenter
         effects.explosion(at: center, scale: 2.0)
         effects.dustPuff(at: center)
