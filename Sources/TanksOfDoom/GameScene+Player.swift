@@ -35,8 +35,7 @@ extension GameScene {
             effects.floatingText("OUT OF FUEL!", at: playerTank.position + CGPoint(x: 0, y: 44), color: .systemOrange)
         }
 
-        let aim = playerTank.position.angle(to: aimPoint)
-        playerTank.turretAngle = rotateAngle(playerTank.turretAngle, toward: aim, maxStep: PlayerTank.turretTurnRate * CGFloat(dt))
+        updateTurret(dt: dt)
 
         inBase = level.isBase(map.grid(playerTank.position))
         if inBase { playerTank.stats.applyBase(seconds: dt) }

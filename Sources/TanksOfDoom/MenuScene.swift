@@ -88,8 +88,9 @@ extension MenuScene {
             Line(text: "TANKS OF DOOM", size: 88, color: NSColor(calibratedRed: 0.9, green: 0.3, blue: 0.15, alpha: 1)),
             Line(text: "Hunt down every enemy tank in the ruined city.", size: 24),
             Line(text: " ", size: 10),
-            Line(text: "W/S drive · A/D turn · MOUSE aim turret", size: 17, color: .lightGray, font: mono),
-            Line(text: "LEFT CLICK main gun · RIGHT CLICK or SPACE machine gun", size: 17, color: .lightGray, font: mono),
+            Line(text: "W/S drive · A/D turn · turret auto-aims at the nearest threat", size: 17, color: .lightGray, font: mono),
+            Line(text: "Q/E turn turret · TAB next target · SPACE main gun · F machine gun", size: 17, color: .lightGray, font: mono),
+            Line(text: "or aim with the MOUSE: LEFT CLICK main gun · RIGHT CLICK machine gun", size: 17, color: .lightGray, font: mono),
             Line(text: "Find hidden GAS and AMMO caches · return to BASE for repairs", size: 17, color: .lightGray, font: mono),
             Line(text: "ESC pause · M minimap size · R abandon tank when out of fuel", size: 17, color: .lightGray, font: mono),
         ]

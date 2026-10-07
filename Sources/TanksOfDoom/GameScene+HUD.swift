@@ -14,7 +14,7 @@ extension GameScene {
         let spotted = enemies
             .filter { $0.position.distance(to: playerTank.position) <= 900 && hasLineOfSight(from: playerTank.position, to: $0.position) }
             .map(\.position)
-        hud.minimap.update(player: playerTank.position, enemies: spotted)
+        hud.minimap.update(player: playerTank.position, enemies: spotted, target: lockedTarget?.position)
     }
 
     override func didChangeSize(_ oldSize: CGSize) {

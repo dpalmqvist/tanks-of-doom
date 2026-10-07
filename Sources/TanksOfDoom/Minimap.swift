@@ -9,6 +9,7 @@ final class Minimap: SKNode {
     private let mapSprite: SKSpriteNode
     private let playerDot = SKShapeNode(circleOfRadius: 3.5)
     private var enemyDots: [SKShapeNode] = []
+    private let targetRing = SKShapeNode(circleOfRadius: 7)
     private let worldSize: CGSize
 
     init(map: TileMap) {
@@ -26,6 +27,12 @@ final class Minimap: SKNode {
         addChild(frameNode)
         addChild(mapSprite)
         addChild(playerDot)
+        targetRing.strokeColor = .systemRed
+        targetRing.lineWidth = 2
+        targetRing.fillColor = .clear
+        targetRing.zPosition = 4
+        targetRing.isHidden = true
+        addChild(targetRing)
         resize()
     }
 
@@ -40,8 +47,10 @@ final class Minimap: SKNode {
         mapSprite.texture = Minimap.texture(for: map)
     }
 
-    func update(player: CGPoint, enemies: [CGPoint]) {
+    func update(player: CGPoint, enemies: [CGPoint], target: CGPoint? = nil) {
         playerDot.position = project(player)
+        targetRing.isHidden = target == nil
+        if let target { targetRing.position = project(target) }
         while enemyDots.count < enemies.count {
             let dot = SKShapeNode(circleOfRadius: 3.5)
             dot.fillColor = .systemRed

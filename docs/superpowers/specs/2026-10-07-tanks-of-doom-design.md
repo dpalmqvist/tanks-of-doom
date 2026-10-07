@@ -99,9 +99,15 @@ Per level, from a seed:
 
 ### Controls
 
-- W/S — drive forward/back; A/D — rotate hull.
-- Mouse — turret aims at the cursor.
-- Left click — main gun. Right click or Space (hold) — machine gun.
+- W/S — drive forward/back; A/D — rotate hull (arrow keys also work).
+- Turret aiming (whichever input was used last wins):
+  - Auto-aim (default): the turret tracks the nearest visible threat within
+    main-gun range — enemy tanks first, then exposed infantry — shown with red
+    brackets in the world and a ring on the minimap. Tab cycles targets. With
+    no target the turret settles over the hull's nose.
+  - Q/E — rotate the turret manually; auto-aim resumes 3 s after release.
+  - Mouse — moving it or clicking hands the turret to the cursor.
+- Space or left click — main gun. F or right click — machine gun.
 - Esc — pause. M — toggle minimap size.
 - R — abandon tank (only when out of fuel; ends the run so a stranded
   player is never soft-locked).

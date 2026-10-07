@@ -30,6 +30,9 @@ final class GameScene: SKScene {
     var shakeTime: Double = 0
     var shakeMagnitude: CGFloat = 0
     var inBase = false
+    var turretAim = TurretAim()
+    var lockedTargetID: Int?
+    let targetMarker = TargetMarker()
     var isGamePaused = false
     var endTimer: Double?
     var victory = false
@@ -96,6 +99,7 @@ final class GameScene: SKScene {
         crosshair.lineWidth = 2
         crosshair.zPosition = Z.hud + 10
         cameraNode.addChild(crosshair)
+        worldNode.addChild(targetMarker)
         setUpHUD()
     }
 
