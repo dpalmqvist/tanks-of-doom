@@ -96,7 +96,7 @@ final class HUD: SKNode {
             statusLabel.text = "AT BASE: REPAIRING AND RESUPPLYING"
             statusLabel.fontColor = .systemGreen
         } else if stats.fuel <= 0 && !stats.isDestroyed {
-            statusLabel.text = "OUT OF FUEL"
+            statusLabel.text = "OUT OF FUEL: PRESS R TO ABANDON TANK"
             statusLabel.fontColor = .systemRed
         } else {
             statusLabel.text = ""

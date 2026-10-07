@@ -104,3 +104,32 @@ extension MenuScene {
         }
     }
 }
+
+extension MenuScene {
+    static func levelComplete(size: CGSize, runStats: RunStats, level: Int) -> MenuScene {
+        let lines = [
+            Line(text: "LEVEL \(level) CLEARED", size: 72, color: .systemGreen),
+            Line(text: "Enemy tanks destroyed: \(runStats.tanksDestroyed)   Infantry killed: \(runStats.infantryKilled)",
+                 size: 20, font: "Menlo-Bold"),
+            Line(text: "The next city is more dangerous.", size: 24),
+        ]
+        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER FOR LEVEL \(level + 1)") { scene in
+            let game = GameScene(size: scene.size, levelNumber: level + 1, runStats: runStats)
+            scene.view?.presentScene(game, transition: .fade(withDuration: 0.6))
+        }
+    }
+
+    static func gameOver(size: CGSize, runStats: RunStats, newBest: Bool) -> MenuScene {
+        let mono = "Menlo-Bold"
+        let lines = [
+            Line(text: "GAME OVER", size: 88, color: .systemRed),
+            Line(text: "Levels cleared: \(runStats.levelsCleared)   Kills: \(runStats.kills)", size: 22, font: mono),
+            newBest
+                ? Line(text: "NEW BEST RUN!", size: 30, color: .systemYellow)
+                : Line(text: "Best run: \(HighScores.bestLevels) levels, \(HighScores.bestKills) kills", size: 20, color: .lightGray, font: mono),
+        ]
+        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO CONTINUE") { scene in
+            scene.view?.presentScene(MenuScene.title(size: scene.size), transition: .fade(withDuration: 0.6))
+        }
+    }
+}

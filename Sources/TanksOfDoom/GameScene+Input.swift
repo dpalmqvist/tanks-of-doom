@@ -10,6 +10,8 @@ extension GameScene {
     func handleKeyPress(_ code: UInt16) {
         switch code {
         case 46: hud.toggleMinimap()   // M
+        case 53: togglePause()         // Esc
+        case 15: abandonTank()         // R
         default: break
         }
     }

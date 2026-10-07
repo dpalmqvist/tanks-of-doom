@@ -30,6 +30,10 @@ final class GameScene: SKScene {
     var shakeTime: Double = 0
     var shakeMagnitude: CGFloat = 0
     var inBase = false
+    var isGamePaused = false
+    var endTimer: Double?
+    var victory = false
+    var levelOver = false
     private var isSetUp = false
     private var resignObserver: NSObjectProtocol?
 
@@ -98,6 +102,7 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 30)
         lastUpdate = currentTime
+        guard !isGamePaused, !levelOver else { return }
         updatePlayer(dt: dt)
         updatePlayerWeapons(dt: dt)
         updateEnemies(dt: dt)
@@ -106,6 +111,7 @@ final class GameScene: SKScene {
         updateMortars(dt: dt)
         updateCamera(dt: dt)
         updateHUD()
+        checkLevelEnd(dt: dt)
     }
 
     var aimPoint: CGPoint { cameraNode.convert(mouseInCamera, to: worldNode) }
