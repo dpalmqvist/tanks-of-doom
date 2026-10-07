@@ -54,3 +54,19 @@ import Testing
     map[x: 3, y: 0] = .building(9)
     #expect(!LineOfSight.isClear(in: map, from: GridPoint(0, 0), to: GridPoint(5, 0), ignoringBuilding: 4))
 }
+
+@Test func pathAvoidsOccupiedTiles() {
+    // Two routes from (0,1) to (4,1): straight along row 1, or around via row 0.
+    var map = TileMap(width: 5, height: 3, fill: .road)
+    for x in 0..<5 { map[x: x, y: 2] = .wall }
+    let blocked: Set<GridPoint> = [GridPoint(2, 1)]
+    let path = Pathfinder.findPath(in: map, from: GridPoint(0, 1), to: GridPoint(4, 1), avoiding: blocked)!
+    #expect(!path.contains(GridPoint(2, 1)))
+    #expect(path.last == GridPoint(4, 1))
+}
+
+@Test func avoidedTilesNeverBlockStartOrGoal() {
+    let map = TileMap(width: 3, height: 1, fill: .road)
+    let path = Pathfinder.findPath(in: map, from: GridPoint(0, 0), to: GridPoint(2, 0), avoiding: [GridPoint(0, 0), GridPoint(2, 0)])
+    #expect(path == [GridPoint(0, 0), GridPoint(1, 0), GridPoint(2, 0)])
+}

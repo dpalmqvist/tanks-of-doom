@@ -4,7 +4,10 @@ import Foundation
 public enum Pathfinder {
     private static let directions = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
 
-    public static func findPath(in map: TileMap, from start: GridPoint, to goal: GridPoint) -> [GridPoint]? {
+    /// `avoiding` tiles (e.g. ones occupied by other tanks) are treated as impassable,
+    /// except the start and goal themselves.
+    public static func findPath(in map: TileMap, from start: GridPoint, to goal: GridPoint,
+                                avoiding: Set<GridPoint> = []) -> [GridPoint]? {
         guard map[start].isPassable, map[goal].isPassable else { return nil }
         if start == goal { return [start] }
 
@@ -23,6 +26,7 @@ public enum Pathfinder {
             for (dx, dy) in directions {
                 let next = GridPoint(current.x + dx, current.y + dy)
                 guard let tileCost = map[next].moveCost, !closed.contains(next) else { continue }
+                if next != goal && avoiding.contains(next) { continue }
                 let diagonal = dx != 0 && dy != 0
                 if diagonal && (!map[x: current.x + dx, y: current.y].isPassable || !map[x: current.x, y: current.y + dy].isPassable) {
                     continue

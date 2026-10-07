@@ -38,6 +38,7 @@ extension GameScene {
             switch soldier.brain.update(dt: dt, playerVisible: visible, distance: playerTank.isDestroyed ? .infinity : Double(distance)) {
             case .expose:
                 soldier.position = windowPoint + CGPoint(angle: windowPoint.angle(to: player), length: tileSize * 0.45)
+                soldier.post = window
                 soldier.removeAllActions()
                 soldier.run(.fadeIn(withDuration: 0.15))
                 soldier.cooldown = 0.4   // aim before the first shot
@@ -56,7 +57,10 @@ extension GameScene {
             soldier.cooldown = Combat.spec(weapon).reload
             if weapon == .mortar {
                 fireMortar(from: soldier.position, at: player + CGPoint(x: .random(in: -50...50), y: .random(in: -50...50)))
-            } else if visible {
+            } else if let post = soldier.post,
+                      LineOfSight.isClear(in: map, from: post, to: playerGrid) {
+                // Fire only along a clear line from where the soldier actually stands; their own
+                // building blocks too (the post tile itself is an endpoint and never blocks).
                 fire(weapon, from: soldier.position, angle: soldier.zRotation + .random(in: -0.07...0.07),
                      byPlayer: false, ownerBuilding: soldier.buildingID)
             }

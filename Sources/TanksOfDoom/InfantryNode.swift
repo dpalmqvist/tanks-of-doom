@@ -9,6 +9,8 @@ final class InfantryNode: SKSpriteNode, Hostile {
     var brain: InfantryBrain
     var hp = InfantryNode.hitPoints
     var cooldown: Double = 0
+    /// The window tile the soldier is currently exposed at.
+    var post: GridPoint?
 
     var isExposed: Bool { brain.state == .exposed }
     var hitRadius: CGFloat { 16 }

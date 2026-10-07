@@ -61,6 +61,10 @@ final class HUD: SKNode {
         levelLabel.horizontalAlignmentMode = .right
         enemiesLabel.horizontalAlignmentMode = .right
         messageLabel.alpha = 0
+        // Text stays readable on top of the (enlarged) minimap.
+        statusLabel.zPosition = 5
+        messageLabel.zPosition = 5
+        pausedLabel.zPosition = 6
         pausedLabel.isHidden = true
         for node in [armorBar, fuelBar, ammoLabel, levelLabel, enemiesLabel, statusLabel, messageLabel, pausedLabel, minimap] as [SKNode] {
             addChild(node)

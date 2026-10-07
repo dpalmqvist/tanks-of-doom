@@ -18,6 +18,8 @@ final class EnemyTank: TankNode, Hostile {
     private var repathTimer: Double = 0
     private var stuckTime: Double = 0
     private var reverseTime: Double = 0
+    /// Tiles held by nearby tanks when this tank got stuck; the next route avoids them.
+    private var avoidTiles: Set<GridPoint> = []
     private var fireCooldown: Double = 1
     private var lastKnownPlayer: CGPoint?
     private let healthBack = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: CGSize(width: 42, height: 6))
@@ -127,7 +129,10 @@ final class EnemyTank: TankNode, Hostile {
     }
 
     private func setPath(to target: CGPoint, map: TileMap) {
-        guard let route = Pathfinder.findPath(in: map, from: map.grid(position), to: map.grid(target)) else {
+        let route = Pathfinder.findPath(in: map, from: map.grid(position), to: map.grid(target), avoiding: avoidTiles)
+            ?? (avoidTiles.isEmpty ? nil : Pathfinder.findPath(in: map, from: map.grid(position), to: map.grid(target)))
+        avoidTiles = []
+        guard let route else {
             path = []
             return
         }
@@ -158,6 +163,8 @@ final class EnemyTank: TankNode, Hostile {
             stuckTime += dt
             if stuckTime > 1.0 {
                 stuckTime = 0
+                avoidTiles = Set(scene.allTanks.filter { $0 !== self && $0.position.distance(to: position) < tileSize * 3 }
+                    .map { map.grid($0.position) })
                 path = []
                 reverseTime = 0.7
                 repathTimer = 0
