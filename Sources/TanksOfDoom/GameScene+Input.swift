@@ -4,6 +4,14 @@ import SpriteKit
 extension GameScene {
     override func keyDown(with event: NSEvent) {
         setKey(event.keyCode, down: true)
+        if !event.isARepeat { handleKeyPress(event.keyCode) }
+    }
+
+    func handleKeyPress(_ code: UInt16) {
+        switch code {
+        case 46: hud.toggleMinimap()   // M
+        default: break
+        }
     }
 
     override func keyUp(with event: NSEvent) {

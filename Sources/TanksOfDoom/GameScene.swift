@@ -12,6 +12,7 @@ final class GameScene: SKScene {
     let crosshair = SKShapeNode(circleOfRadius: 10)
     var renderer: WorldRenderer!
     var effects: Effects!
+    var hud: HUD!
     let playerTank = PlayerTank()
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
@@ -91,6 +92,7 @@ final class GameScene: SKScene {
         crosshair.lineWidth = 2
         crosshair.zPosition = Z.hud + 10
         cameraNode.addChild(crosshair)
+        setUpHUD()
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -103,6 +105,7 @@ final class GameScene: SKScene {
         updateProjectiles(dt: dt)
         updateMortars(dt: dt)
         updateCamera(dt: dt)
+        updateHUD()
     }
 
     var aimPoint: CGPoint { cameraNode.convert(mouseInCamera, to: worldNode) }

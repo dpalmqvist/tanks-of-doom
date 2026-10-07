@@ -209,5 +209,6 @@ extension GameScene {
         effects.dustPuff(at: center)
         playSound(.bigExplosion, at: center)
         shake(10, duration: 0.4)
+        hud.minimap.refresh(map: level.map)
     }
 }
