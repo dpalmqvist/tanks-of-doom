@@ -14,6 +14,10 @@ final class GameScene: SKScene {
     var effects: Effects!
     let playerTank = PlayerTank()
     var pickups: [PickupNode] = []
+    var projectiles: [Projectile] = []
+    var mortars: [MortarShell] = []
+    /// Everything the player can shoot. Tasks 11 and 12 add enemy tanks and infantry.
+    var hostiles: [Hostile] { [] }
 
     var input = InputState()
     var mouseInCamera = CGPoint.zero
@@ -88,6 +92,9 @@ final class GameScene: SKScene {
         let dt = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 30)
         lastUpdate = currentTime
         updatePlayer(dt: dt)
+        updatePlayerWeapons(dt: dt)
+        updateProjectiles(dt: dt)
+        updateMortars(dt: dt)
         updateCamera(dt: dt)
     }
 
