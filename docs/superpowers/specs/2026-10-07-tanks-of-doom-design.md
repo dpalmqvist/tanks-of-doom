@@ -93,8 +93,7 @@ Per level, from a seed:
 7. Infantry are assigned to buildings; density and weapon mix from
    `Difficulty`.
 8. Validation: flood-fill from the base; every road tile, cache and tank spawn
-   must be reachable. Unreachable regions are connected by carving a road;
-   if validation still fails, regenerate with a derived seed.
+   must be reachable. If validation fails, regenerate with a derived seed.
 
 ## Gameplay
 
@@ -104,6 +103,8 @@ Per level, from a seed:
 - Mouse — turret aims at the cursor.
 - Left click — main gun. Right click or Space (hold) — machine gun.
 - Esc — pause. M — toggle minimap size.
+- R — abandon tank (only when out of fuel; ends the run so a stranded
+  player is never soft-locked).
 
 ### Player tank
 
