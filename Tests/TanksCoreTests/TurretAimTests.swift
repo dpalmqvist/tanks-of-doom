@@ -49,16 +49,10 @@ private let farSoldier = TargetCandidate(id: 4, position: WorldPoint(400, 0), is
     #expect(aim.mode == .auto)
 }
 
-@Test func lastTouchedInputWins() {
+@Test func cyclingTargetsReturnsToAuto() {
     var aim = TurretAim()
-    aim.mouseUsed()
-    #expect(aim.mode == .mouse)
-    aim.update(dt: 100, manualHeld: false)           // mouse mode does not time out
-    #expect(aim.mode == .mouse)
     aim.manualInput()
     #expect(aim.mode == .manual)
-    aim.mouseUsed()
-    #expect(aim.mode == .mouse)
     aim.cycleTarget()
     #expect(aim.mode == .auto)
 }

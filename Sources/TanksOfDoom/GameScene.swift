@@ -9,7 +9,6 @@ final class GameScene: SKScene {
 
     let worldNode = SKNode()
     let cameraNode = SKCameraNode()
-    let crosshair = SKShapeNode(circleOfRadius: 10)
     var renderer: WorldRenderer!
     var effects: Effects!
     var hud: HUD!
@@ -24,7 +23,6 @@ final class GameScene: SKScene {
     var hostiles: [Hostile] { (enemies as [Hostile]) + (infantry as [Hostile]) }
 
     var input = InputState()
-    var mouseInCamera = CGPoint.zero
     var lastUpdate: TimeInterval = 0
     var cameraBase = CGPoint.zero
     var shakeTime: Double = 0
@@ -95,10 +93,6 @@ final class GameScene: SKScene {
         camera = cameraNode
         cameraBase = playerTank.position
         cameraNode.position = cameraBase
-        crosshair.strokeColor = .white
-        crosshair.lineWidth = 2
-        crosshair.zPosition = Z.hud + 10
-        cameraNode.addChild(crosshair)
         worldNode.addChild(targetMarker)
         setUpHUD()
     }
@@ -117,8 +111,6 @@ final class GameScene: SKScene {
         updateHUD()
         checkLevelEnd(dt: dt)
     }
-
-    var aimPoint: CGPoint { cameraNode.convert(mouseInCamera, to: worldNode) }
 
     func shake(_ magnitude: CGFloat, duration: Double) {
         guard magnitude >= shakeMagnitude || shakeTime <= 0 else { return }
@@ -139,7 +131,6 @@ final class GameScene: SKScene {
             if shakeTime <= 0 { shakeMagnitude = 0 }
         }
         cameraNode.position = p + offset
-        crosshair.position = mouseInCamera
     }
 
     /// Keeps the view inside the map; centres the map when the view is larger than it.

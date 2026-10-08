@@ -35,19 +35,4 @@ extension GameScene {
         default: break
         }
     }
-
-    override func mouseDown(with event: NSEvent) { input.leftMouse = true; trackMouse(event, used: true) }
-    override func mouseUp(with event: NSEvent) { input.leftMouse = false }
-    override func mouseDragged(with event: NSEvent) { trackMouse(event) }
-    override func rightMouseDown(with event: NSEvent) { input.rightMouse = true; trackMouse(event, used: true) }
-    override func rightMouseUp(with event: NSEvent) { input.rightMouse = false }
-    override func rightMouseDragged(with event: NSEvent) { trackMouse(event) }
-    override func mouseMoved(with event: NSEvent) { trackMouse(event) }
-
-    /// Stored in camera space so the aim stays correct while the camera moves. A click or a
-    /// deliberate movement (not jitter) hands turret control to the mouse.
-    func trackMouse(_ event: NSEvent, used: Bool = false) {
-        mouseInCamera = event.location(in: cameraNode)
-        if used || hypot(event.deltaX, event.deltaY) > 3 { turretAim.mouseUsed() }
-    }
 }

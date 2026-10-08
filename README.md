@@ -71,8 +71,8 @@ swift test                   # run the unit tests for the game logic
 | --- | --- |
 | Drive forward / back | **W** / **S** (or ↑ / ↓) |
 | Turn the hull | **A** / **D** (or ← / →) |
-| Fire main gun | **Space** or left click |
-| Fire machine gun | **F** or right click |
+| Fire main gun | **Space** |
+| Fire machine gun | **F** |
 | Turn turret by hand | **Q** / **E** |
 | Next target | **Tab** |
 | Pause | **Esc** |
@@ -80,7 +80,7 @@ swift test                   # run the unit tests for the game logic
 | Abandon tank (only when out of fuel) | **R** |
 | Quit | **Cmd-Q** |
 
-**Aiming:** by default the turret aims itself at the nearest threat it can see. Enemy tanks come first, then soldiers in windows. Red brackets mark the target, and a red ring marks it on the minimap. Press **Tab** to switch targets. **Q/E** take over by hand, and auto-aim resumes 3 seconds after you let go. Moving the mouse or clicking hands the turret to the cursor instead. Whichever control you used last wins.
+**Aiming:** by default the turret aims itself at the nearest threat it can see. Enemy tanks come first, then soldiers in windows. Red brackets mark the target, and a red ring marks it on the minimap. Press **Tab** to switch targets. **Q/E** take over by hand, and auto-aim resumes 3 seconds after you let go.
 
 ## How to Survive
 

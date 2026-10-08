@@ -59,9 +59,6 @@ extension GameScene {
         turretAim.update(dt: dt, manualHeld: input.turretManualHeld)
         let maxStep = PlayerTank.turretTurnRate * CGFloat(dt)
         switch turretAim.mode {
-        case .mouse:
-            let aim = playerTank.position.angle(to: aimPoint)
-            playerTank.turretAngle = rotateAngle(playerTank.turretAngle, toward: aim, maxStep: maxStep)
         case .manual:
             var direction: CGFloat = 0
             if input.turretLeft { direction += 1 }
@@ -81,6 +78,5 @@ extension GameScene {
         } else {
             targetMarker.isHidden = true
         }
-        crosshair.isHidden = turretAim.mode != .mouse
     }
 }

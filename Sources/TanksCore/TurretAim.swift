@@ -42,11 +42,11 @@ public enum TargetSelector {
 }
 
 public enum AimMode: Equatable, Sendable {
-    case auto, manual, mouse
+    case auto, manual
 }
 
-/// Which input controls the turret: whichever was touched last. Manual (Q/E) control
-/// hands back to auto-aim a few seconds after the keys are released.
+/// Which input controls the turret. Manual (Q/E) control hands back to auto-aim a few
+/// seconds after the keys are released.
 public struct TurretAim: Sendable {
     public static let manualHold = 3.0
 
@@ -58,10 +58,6 @@ public struct TurretAim: Sendable {
     public mutating func manualInput() {
         mode = .manual
         manualTimer = Self.manualHold
-    }
-
-    public mutating func mouseUsed() {
-        mode = .mouse
     }
 
     public mutating func cycleTarget() {

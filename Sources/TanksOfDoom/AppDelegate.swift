@@ -11,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           backing: .buffered, defer: false)
         window.title = "Tanks of Doom"
         window.minSize = NSSize(width: 800, height: 500)
-        window.acceptsMouseMovedEvents = true
 
         let view = GameView(frame: frame)
         view.ignoresSiblingOrder = true
