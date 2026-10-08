@@ -97,7 +97,13 @@ final class HUD: SKNode {
         levelLabel.text = "LEVEL \(level)"
         enemiesLabel.text = "ENEMY TANKS: \(enemiesLeft)"
         if inBase {
-            statusLabel.text = "AT BASE: REPAIRING AND RESUPPLYING"
+            if stats.armor < TankStats.maxArmor {
+                statusLabel.text = "AT BASE: REPAIRING ARMOR"
+            } else if stats.fuel < TankStats.maxFuel {
+                statusLabel.text = "AT BASE: REFUELLING"
+            } else {
+                statusLabel.text = "AT BASE: FULLY REPAIRED AND REFUELLED"
+            }
             statusLabel.fontColor = .systemGreen
         } else if stats.fuel <= 0 && !stats.isDestroyed {
             statusLabel.text = "OUT OF FUEL: PRESS R TO ABANDON TANK"

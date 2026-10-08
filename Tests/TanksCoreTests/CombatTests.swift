@@ -76,16 +76,19 @@ import Testing
     #expect(stats.isDestroyed)
 }
 
-@Test func baseRepairsAndTopsUpToMinimumsOnly() {
+@Test func baseRepairsArmorBeforeRefuelling() {
     var low = TankStats()
     low.armor = 50; low.fuel = 5; low.shells = 0; low.rounds = 10
     low.applyBase(seconds: 1)
     #expect(low.armor == 58)
-    #expect(low.fuel == TankStats.baseMinFuel)
+    #expect(low.fuel == 5)   // no fuel until armor is full
     #expect(low.shells == TankStats.baseMinShells)
     #expect(low.rounds == TankStats.baseMinRounds)
-    low.applyBase(seconds: 100)
+    low.applyBase(seconds: 6.25)   // armor needs 5.25s more; the last second refuels
     #expect(low.armor == 100)
+    #expect(low.fuel == 15)
+    low.applyBase(seconds: 100)
+    #expect(low.fuel == TankStats.maxFuel)
 
     var full = TankStats()
     full.applyBase(seconds: 1)

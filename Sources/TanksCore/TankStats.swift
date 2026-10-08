@@ -9,7 +9,7 @@ public struct TankStats: Equatable, Sendable {
     public static let fuelPerSecondMoving = 0.9
     public static let fuelPerSecondIdle = 0.1
     public static let baseRepairPerSecond = 8.0
-    public static let baseMinFuel = 50.0
+    public static let baseRefuelPerSecond = 10.0
     public static let baseMinShells = 8
     public static let baseMinRounds = 150
     public static let gasCacheFuel = 45.0
@@ -47,10 +47,14 @@ public struct TankStats: Equatable, Sendable {
         return true
     }
 
-    /// While parked at base: armor repairs gradually; fuel and ammo jump to the base minimums.
+    /// While parked at base: armor repairs first, then fuel fills up to full, both gradually;
+    /// ammo jumps to the base minimums.
     public mutating func applyBase(seconds: Double) {
-        armor = min(Self.maxArmor, armor + Self.baseRepairPerSecond * seconds)
-        fuel = max(fuel, Self.baseMinFuel)
+        let repairSeconds = min(seconds, (Self.maxArmor - armor) / Self.baseRepairPerSecond)
+        armor = min(Self.maxArmor, armor + Self.baseRepairPerSecond * repairSeconds)
+        if armor >= Self.maxArmor {
+            fuel = min(Self.maxFuel, fuel + Self.baseRefuelPerSecond * (seconds - repairSeconds))
+        }
         shells = max(shells, Self.baseMinShells)
         rounds = max(rounds, Self.baseMinRounds)
     }

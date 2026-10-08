@@ -94,7 +94,7 @@ swift test                   # run the unit tests for the game logic
 - **Enemy tanks** patrol until they spot you, chase your last known position, and retreat when badly damaged. Line of sight matters for both sides: buildings block shots and vision, rubble doesn't.
 - **Rubble and craters** halve your speed.
 - **Caches:** gas cans give +45 fuel, ammo crates +8 shells and +120 rounds. They aren't shown on the minimap, so go looking.
-- **Base** repairs armor over time and tops fuel and ammo up to a minimum: 50 fuel, 8 shells, 150 rounds. Full loads come from caches.
+- **Base** repairs armor first, then fills the fuel tank, both over time. Ammo is topped up to a minimum of 8 shells and 150 rounds; full loads come from caches.
 - **Stranded?** If you run dry far from home, press **R** to abandon the tank and end the run.
 
 Every level adds more enemy tanks with thicker armor, faster driving and quicker trigger fingers, and more buildings full of soldiers. Your best run (levels cleared, then kills) is saved.
