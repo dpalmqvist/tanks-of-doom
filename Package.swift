@@ -6,8 +6,10 @@ let package = Package(
     platforms: [.macOS(.v14)],
     targets: [
         .target(name: "TanksCore"),
-        .executableTarget(name: "TanksOfDoom", dependencies: ["TanksCore"]),
+        .target(name: "TanksNet", dependencies: ["TanksCore"]),
+        .executableTarget(name: "TanksOfDoom", dependencies: ["TanksCore", "TanksNet"]),
         .testTarget(name: "TanksCoreTests", dependencies: ["TanksCore"]),
+        .testTarget(name: "TanksNetTests", dependencies: ["TanksNet", "TanksCore"]),
     ],
     swiftLanguageModes: [.v5]
 )
