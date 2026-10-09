@@ -40,6 +40,15 @@ final class StatBar: SKNode {
     }
 }
 
+/// Everything the versus overlay shows, from whichever side knows it (the host's match or the guest's snapshots).
+struct VersusHUDState {
+    var localSlot: PlayerSlot
+    var lives: [PlayerSlot: Int]
+    var respawnIn: Double?
+    var latencyMs: Int?
+    var notice: String?
+}
+
 /// Screen-space overlay attached to the camera (origin at the screen centre).
 final class HUD: SKNode {
     let minimap: Minimap
@@ -51,22 +60,43 @@ final class HUD: SKNode {
     private let statusLabel = SKLabelNode.hud(size: 18)
     private let messageLabel = SKLabelNode.make("", size: 34)
     private let pausedLabel = SKLabelNode.make("PAUSED", size: 64)
+    private let leaveLabel = SKLabelNode.make("LEAVE MATCH?  Y / N", size: 48, color: .systemOrange)
+    private let isVersus: Bool
+    private let livesLabel = SKLabelNode.hud(size: 20)
+    private let respawnLabel = SKLabelNode.make("", size: 44)
+    private let livesLeftLabel = SKLabelNode.make("", size: 24, color: .lightGray)
+    private let noticeLabel = SKLabelNode.make("", size: 30, color: .systemOrange)
+    private let latencyLabel = SKLabelNode.hud(size: 13)
+    private var killFeed: [SKLabelNode] = []
     private var lastSize = CGSize.zero
 
-    init(level: Level) {
+    init(level: Level, versus: Bool = false) {
         minimap = Minimap(map: level.map)
+        isVersus = versus
         super.init()
         zPosition = Z.hud
         ammoLabel.horizontalAlignmentMode = .left
         levelLabel.horizontalAlignmentMode = .right
         enemiesLabel.horizontalAlignmentMode = .right
+        latencyLabel.horizontalAlignmentMode = .left
+        latencyLabel.fontColor = .lightGray
         messageLabel.alpha = 0
         // Text stays readable on top of the (enlarged) minimap.
         statusLabel.zPosition = 5
         messageLabel.zPosition = 5
+        leaveLabel.zPosition = 7
+        leaveLabel.isHidden = true
         pausedLabel.zPosition = 6
         pausedLabel.isHidden = true
-        for node in [armorBar, fuelBar, ammoLabel, levelLabel, enemiesLabel, statusLabel, messageLabel, pausedLabel, minimap] as [SKNode] {
+        for label in [respawnLabel, livesLeftLabel, noticeLabel] {
+            label.zPosition = 6
+            label.isHidden = true
+        }
+        levelLabel.isHidden = versus
+        enemiesLabel.isHidden = versus
+        livesLabel.isHidden = !versus
+        for node in [armorBar, fuelBar, ammoLabel, levelLabel, enemiesLabel, statusLabel, messageLabel, pausedLabel, leaveLabel, minimap,
+                     livesLabel, respawnLabel, livesLeftLabel, noticeLabel, latencyLabel] as [SKNode] {
             addChild(node)
         }
     }
@@ -87,7 +117,14 @@ final class HUD: SKNode {
         statusLabel.position = CGPoint(x: 0, y: bottom + 40)
         messageLabel.position = CGPoint(x: 0, y: size.height / 2 - 110)
         pausedLabel.position = .zero
+        leaveLabel.position = .zero
         minimap.position = CGPoint(x: right - minimap.displaySize, y: bottom + 20)
+        livesLabel.position = CGPoint(x: 0, y: top)
+        respawnLabel.position = CGPoint(x: 0, y: 40)
+        livesLeftLabel.position = CGPoint(x: 0, y: -10)
+        noticeLabel.position = CGPoint(x: 0, y: size.height / 2 - 160)
+        latencyLabel.position = CGPoint(x: left, y: bottom + 16)
+        layoutKillFeed()
     }
 
     func update(stats: TankStats, level: Int, enemiesLeft: Int, inBase: Bool) {
@@ -119,6 +156,62 @@ final class HUD: SKNode {
         messageLabel.removeAllActions()
         messageLabel.alpha = 1
         messageLabel.run(.sequence([.wait(forDuration: duration), .fadeOut(withDuration: 0.5)]))
+    }
+
+    func updateVersus(_ state: VersusHUDState) {
+        let me = state.localSlot
+        let font = NSFont(name: "Menlo-Bold", size: 20) ?? .boldSystemFont(ofSize: 20)
+        let text = NSMutableAttributedString()
+        func add(_ string: String, _ color: NSColor) {
+            text.append(NSAttributedString(string: string, attributes: [.foregroundColor: color, .font: font]))
+        }
+        add("YOU \(Self.hearts(state.lives[me] ?? 0))", me.color)
+        add("     ", .white)
+        add("OPPONENT \(Self.hearts(state.lives[me.opponent] ?? 0))", me.opponent.color)
+        livesLabel.attributedText = text
+
+        if let seconds = state.respawnIn {
+            respawnLabel.isHidden = false
+            livesLeftLabel.isHidden = false
+            respawnLabel.text = "RESPAWNING IN \(Int(seconds.rounded(.up)))…"
+            livesLeftLabel.text = "LIVES LEFT: \(state.lives[me] ?? 0)"
+        } else {
+            respawnLabel.isHidden = true
+            livesLeftLabel.isHidden = true
+        }
+        noticeLabel.isHidden = state.notice == nil
+        noticeLabel.text = state.notice
+        latencyLabel.text = state.latencyMs.map { "\($0) ms" } ?? ""
+    }
+
+    /// Newest line on top; at most three, each fading after six seconds.
+    func addKillFeed(_ line: String) {
+        let label = SKLabelNode.hud(size: 15)
+        label.text = line
+        label.horizontalAlignmentMode = .right
+        label.zPosition = 5
+        addChild(label)
+        label.run(.sequence([.wait(forDuration: 6), .fadeOut(withDuration: 0.5), .removeFromParent()]))
+        killFeed.removeAll { $0.parent == nil }
+        killFeed.insert(label, at: 0)
+        while killFeed.count > 3 { killFeed.removeLast().removeFromParent() }
+        layoutKillFeed()
+    }
+
+    private func layoutKillFeed() {
+        let right = lastSize.width / 2 - 20
+        let top = lastSize.height / 2 - 24
+        for (index, label) in killFeed.enumerated() {
+            label.position = CGPoint(x: right, y: top - CGFloat(index) * 22)
+        }
+    }
+
+    private static func hearts(_ count: Int) -> String {
+        count <= 0 ? "–" : String(repeating: "♥", count: count)
+    }
+
+    func setLeavePrompt(_ shown: Bool) {
+        leaveLabel.isHidden = !shown
     }
 
     func setPaused(_ paused: Bool) {

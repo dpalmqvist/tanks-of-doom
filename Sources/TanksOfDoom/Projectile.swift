@@ -2,28 +2,31 @@ import AppKit
 import SpriteKit
 import TanksCore
 
-/// Something the player's weapons can hit (enemy tanks, exposed infantry).
+/// Something a weapon can hit: enemy tanks, exposed infantry and, in versus, the other player's tank.
 protocol Hostile: SKNode {
+    /// Stable id shared with the guest's mirror of the world.
+    var netID: UInt32 { get }
     var hitRadius: CGFloat { get }
     var targetKind: TargetKind { get }
     var canBeHit: Bool { get }
-    func applyDamage(_ amount: Int, in scene: GameScene)
+    func applyDamage(_ amount: Int, from shooter: Combatant, in scene: GameScene)
 }
 
 /// A straight-flying shot.
 final class Projectile: SKSpriteNode {
     let weapon: WeaponKind
-    let byPlayer: Bool
+    let shooter: Combatant
     /// Infantry shots start inside their own building, so that building never stops them.
     let ownerBuilding: Int?
     let velocity: CGVector
     var remainingRange: CGFloat
     var smokeTimer: Double = 0
+    var netID: UInt32 = 0
 
-    init(weapon: WeaponKind, angle: CGFloat, byPlayer: Bool, ownerBuilding: Int?) {
+    init(weapon: WeaponKind, angle: CGFloat, shooter: Combatant, ownerBuilding: Int?) {
         let spec = Combat.spec(weapon)
         self.weapon = weapon
-        self.byPlayer = byPlayer
+        self.shooter = shooter
         self.ownerBuilding = ownerBuilding
         velocity = CGVector(dx: cos(angle) * spec.projectileSpeed, dy: sin(angle) * spec.projectileSpeed)
         remainingRange = CGFloat(spec.range)
@@ -43,6 +46,7 @@ final class MortarShell: SKSpriteNode {
     let start: CGPoint
     let target: CGPoint
     let marker: SKShapeNode
+    var netID: UInt32 = 0
     private var elapsed: Double = 0
 
     init(from start: CGPoint, to target: CGPoint) {
@@ -62,12 +66,19 @@ final class MortarShell: SKSpriteNode {
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// 0 at launch, 1 on landing.
+    var progress: Double { min(1, elapsed / Self.flightTime) }
+
     /// Advances along the arc; returns true on landing.
     func advance(dt: Double) -> Bool {
         elapsed += dt
-        let t = CGFloat(min(1, elapsed / Self.flightTime))
+        show(progress: CGFloat(progress))
+        return progress >= 1
+    }
+
+    /// Puts the shell at `t` along its arc (the guest drives this from snapshots).
+    func show(progress t: CGFloat) {
         position = start + (target - start) * t
         setScale(1 + 1.8 * sin(.pi * t))
-        return t >= 1
     }
 }

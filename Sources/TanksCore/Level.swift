@@ -92,6 +92,17 @@ public enum BuildingHitResult: Equatable, Sendable {
     case destroyed
 }
 
+/// A home base: where a player starts and repairs.
+public struct BaseSite: Equatable, Sendable {
+    public let center: GridPoint
+    public let tiles: [GridPoint]
+
+    public init(center: GridPoint, tiles: [GridPoint]) {
+        self.center = center
+        self.tiles = tiles
+    }
+}
+
 public struct Level: Sendable {
     public let number: Int
     public let seed: UInt64
@@ -103,9 +114,12 @@ public struct Level: Sendable {
     public let caches: [Cache]
     public let infantry: [InfantrySpawn]
     public let enemyTanks: [EnemyTankSpawn]
+    /// Every base; the campaign has one (the same as `baseCenter`/`baseTiles`), versus has one per player.
+    public let bases: [BaseSite]
 
     public init(number: Int, seed: UInt64, map: TileMap, buildings: [Building], baseTiles: [GridPoint],
-                baseCenter: GridPoint, caches: [Cache], infantry: [InfantrySpawn], enemyTanks: [EnemyTankSpawn]) {
+                baseCenter: GridPoint, caches: [Cache], infantry: [InfantrySpawn], enemyTanks: [EnemyTankSpawn],
+                bases: [BaseSite]? = nil) {
         self.number = number
         self.seed = seed
         self.map = map
@@ -115,9 +129,16 @@ public struct Level: Sendable {
         self.caches = caches
         self.infantry = infantry
         self.enemyTanks = enemyTanks
+        self.bases = bases ?? [BaseSite(center: baseCenter, tiles: baseTiles)]
     }
 
     public func isBase(_ p: GridPoint) -> Bool { map[p] == .base }
+
+    /// Which base `p` belongs to, if any.
+    public func baseIndex(at p: GridPoint) -> Int? {
+        guard map[p] == .base else { return nil }
+        return bases.firstIndex { $0.tiles.contains(p) }
+    }
 
     /// Applies damage; a building at 0 HP collapses and its tiles become rubble.
     public mutating func damageBuilding(_ id: Int, by amount: Int) -> BuildingHitResult {
@@ -126,5 +147,11 @@ public struct Level: Sendable {
         guard buildings[id].isDestroyed else { return .damaged(stage: buildings[id].damageStage) }
         for tile in buildings[id].tiles { map[tile] = .rubble }
         return .destroyed
+    }
+
+    /// Brings a building down to `hp` as reported by the host. Buildings never heal, so a higher value is ignored.
+    public mutating func setBuildingHP(_ id: Int, to hp: Int) -> BuildingHitResult {
+        guard buildings.indices.contains(id), hp < buildings[id].hp else { return .none }
+        return damageBuilding(id, by: buildings[id].hp - hp)
     }
 }

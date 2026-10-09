@@ -11,6 +11,8 @@ final class InfantryNode: SKSpriteNode, Hostile {
     var cooldown: Double = 0
     /// The window tile the soldier is currently exposed at.
     var post: GridPoint?
+    var netID: UInt32 = 0
+    var kind: InfantryKind { brain.kind }
 
     var isExposed: Bool { brain.state == .exposed }
     var hitRadius: CGFloat { 16 }
@@ -28,7 +30,7 @@ final class InfantryNode: SKSpriteNode, Hostile {
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func applyDamage(_ amount: Int, in scene: GameScene) {
+    func applyDamage(_ amount: Int, from shooter: Combatant, in scene: GameScene) {
         guard hp > 0 else { return }
         hp -= amount
         if hp <= 0 { scene.infantryKilled(self) }

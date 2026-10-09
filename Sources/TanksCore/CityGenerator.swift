@@ -23,15 +23,22 @@ public enum CityGenerator {
         }
     }
 
-    public static func generate(seed: UInt64, level: Int) -> Level {
+    public static func generate(seed: UInt64, level: Int, bases: Int = 1) -> Level {
+        precondition((1...2).contains(bases), "a city has one base (campaign) or two (versus)")
         for attempt in 0..<100 {
             var rng = SeededRandom(seed: seed &+ UInt64(attempt) &* 0x9E37_79B9_7F4A_7C15)
-            if let city = build(seed: seed, level: max(1, level), rng: &rng) { return city }
+            if let city = build(seed: seed, level: max(1, level), baseCount: bases, rng: &rng) { return city }
         }
         fatalError("CityGenerator could not build a valid city for seed \(seed)")
     }
 
-    static func build(seed: UInt64, level number: Int, rng: inout SeededRandom) -> Level? {
+    /// Bottom-left for the campaign and the host; the mirror-image top-right corner for the guest.
+    static func baseOrigins(count: Int) -> [GridPoint] {
+        let far = mapSize - 3 - baseSize
+        return Array([baseOrigin, GridPoint(far, far)].prefix(count))
+    }
+
+    static func build(seed: UInt64, level number: Int, baseCount: Int, rng: inout SeededRandom) -> Level? {
         let n = mapSize
         let difficulty = Difficulty(level: number)
         // `.park` doubles as "unassigned" while building; leftovers stay as parks.
@@ -62,15 +69,23 @@ public enum CityGenerator {
             }
         }
 
-        // 3. Home base.
-        var baseTiles: [GridPoint] = []
-        for y in baseOrigin.y..<(baseOrigin.y + baseSize) {
-            for x in baseOrigin.x..<(baseOrigin.x + baseSize) {
-                map[x: x, y: y] = .base
-                baseTiles.append(GridPoint(x, y))
+        // 3. Home bases. Placing them uses no randomness, so one-base cities stay exactly as before.
+        var sites: [BaseSite] = []
+        for origin in baseOrigins(count: baseCount) {
+            var tiles: [GridPoint] = []
+            for y in origin.y..<(origin.y + baseSize) {
+                for x in origin.x..<(origin.x + baseSize) {
+                    map[x: x, y: y] = .base
+                    tiles.append(GridPoint(x, y))
+                }
             }
+            sites.append(BaseSite(center: GridPoint(origin.x + baseSize / 2, origin.y + baseSize / 2), tiles: tiles))
         }
-        let baseCenter = GridPoint(baseOrigin.x + baseSize / 2, baseOrigin.y + baseSize / 2)
+        let baseCenter = sites[0].center
+        let baseCenters = sites.map(\.center)
+        func distanceToNearestBase(_ p: GridPoint) -> Double {
+            baseCenters.map { $0.distance(to: p) }.min()!
+        }
 
         // 4. Building lots.
         var buildings: [Building] = []
@@ -79,10 +94,11 @@ public enum CityGenerator {
         let roads = map.points { $0 == .road }
         let reachable = map.reachable(from: baseCenter)
         guard roads.allSatisfy(reachable.contains) else { return nil }
+        guard baseCenters.allSatisfy(reachable.contains) else { return nil }
 
         // 5. Enemy tanks with patrol routes, far from base.
         var tanks: [EnemyTankSpawn] = []
-        let farRoads = roads.filter { $0.distance(to: baseCenter) >= minTankDistanceFromBase }.shuffled(using: &rng)
+        let farRoads = roads.filter { distanceToNearestBase($0) >= minTankDistanceFromBase }.shuffled(using: &rng)
         for candidate in farRoads where tanks.count < difficulty.enemyTankCount {
             guard tanks.allSatisfy({ $0.position.distance(to: candidate) >= 8 }) else { continue }
             let nearby = roads.filter { (6...25).contains($0.distance(to: candidate)) }
@@ -95,7 +111,7 @@ public enum CityGenerator {
 
         // 6. Hidden caches: alleys (narrow road tiles), rubble, craters and parks, biased away from base.
         let candidates = map.allPoints.filter { p in
-            guard reachable.contains(p), p.distance(to: baseCenter) >= safeZoneRadius else { return false }
+            guard reachable.contains(p), distanceToNearestBase(p) >= safeZoneRadius else { return false }
             switch map[p] {
             case .rubble, .crater, .park: return true
             case .road: return map.neighbors4(of: p).filter { map[$0].isPassable }.count <= 2
@@ -103,7 +119,7 @@ public enum CityGenerator {
             }
         }
         guard !candidates.isEmpty else { return nil }
-        let weights = candidates.map { $0.distance(to: baseCenter) }
+        let weights = candidates.map(distanceToNearestBase)
         let totalWeight = weights.reduce(0, +)
         let kinds = Array(repeating: CacheKind.gas, count: difficulty.gasCacheCount)
             + Array(repeating: CacheKind.ammo, count: difficulty.ammoCacheCount)
@@ -125,15 +141,15 @@ public enum CityGenerator {
         var infantry: [InfantrySpawn] = []
         for b in buildings {
             let center = b.tiles[b.tiles.count / 2]
-            guard center.distance(to: baseCenter) >= safeZoneRadius + 2, rng.chance(difficulty.infantryChance) else { continue }
+            guard distanceToNearestBase(center) >= safeZoneRadius + 2, rng.chance(difficulty.infantryChance) else { continue }
             let count = (b.tiles.count >= 9 && rng.chance(0.35)) ? 2 : 1
             for _ in 0..<count {
                 infantry.append(InfantrySpawn(kind: difficulty.randomInfantryKind(using: &rng), buildingID: b.id))
             }
         }
 
-        return Level(number: number, seed: seed, map: map, buildings: buildings, baseTiles: baseTiles,
-                     baseCenter: baseCenter, caches: caches, infantry: infantry, enemyTanks: tanks)
+        return Level(number: number, seed: seed, map: map, buildings: buildings, baseTiles: sites[0].tiles,
+                     baseCenter: baseCenter, caches: caches, infantry: infantry, enemyTanks: tanks, bases: sites)
     }
 
     static func avenuePositions(size n: Int, rng: inout SeededRandom) -> [Int] {

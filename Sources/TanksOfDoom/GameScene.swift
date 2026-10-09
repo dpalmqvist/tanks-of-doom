@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 final class GameScene: SKScene {
     let levelNumber: Int
@@ -12,24 +13,45 @@ final class GameScene: SKScene {
     var renderer: WorldRenderer!
     var effects: Effects!
     var hud: HUD!
-    let playerTank = PlayerTank()
+    /// Every human-driven tank. The campaign has one.
+    let players: [Player]
+    /// The player at this keyboard: the camera, HUD and sound follow them.
+    let localPlayer: Player
+    let mode: GameMode
+    /// Lives, respawns and the winner. Nil in the campaign, and on a networked guest (the host keeps score).
+    var match: MatchState?
+    var aiTankQueue = RespawnQueue<EnemyTankSpawn>()
+    var infantryQueue = RespawnQueue<InfantrySpawn>()
+    var pickupQueue = RespawnQueue<Int>()
+    /// Effects waiting to ride along with the next snapshot to the guest.
+    var outgoingEvents: [GameEvent] = []
+    /// Host: the guest's latest keys.
+    var remoteInput = RemoteInput()
+    var snapshotTimer = 0.0
+    var hostTick: UInt32 = 0
+    /// Guest: everything mirrored from the host.
+    var guestWorld: GuestWorld?
+    /// Networked matches open with 3-2-1 so both Macs start together.
+    var countdown: Double?
+    var matchWinner: PlayerSlot?
+    var leavePromptShown = false
+    /// Messages that can arrive while the match is ending, handed on to the result screen.
+    var opponentRequestedRematch = false
+    var opponentLeft = false
+    static let countdownLength = 3.0
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
     var enemies: [EnemyTank] = []
     var infantry: [InfantryNode] = []
     var buildingWindows: [Int: [GridPoint]] = [:]
-    /// Everything the player can shoot.
-    var hostiles: [Hostile] { (enemies as [Hostile]) + (infantry as [Hostile]) }
+    /// Ids 1–16 are reserved for player tanks; every other networked thing counts up from here.
+    private var lastNetID: UInt32 = 16
 
-    var input = InputState()
     var lastUpdate: TimeInterval = 0
     var cameraBase = CGPoint.zero
     var shakeTime: Double = 0
     var shakeMagnitude: CGFloat = 0
-    var inBase = false
-    var turretAim = TurretAim()
-    var lockedTargetID: Int?
     let targetMarker = TargetMarker()
     var isGamePaused = false
     var endTimer: Double?
@@ -38,10 +60,30 @@ final class GameScene: SKScene {
     private var isSetUp = false
     private var resignObserver: NSObjectProtocol?
 
-    init(size: CGSize, levelNumber: Int, runStats: RunStats) {
+    convenience init(size: CGSize, levelNumber: Int, runStats: RunStats) {
+        let level = CityGenerator.generate(seed: .random(in: 0...UInt64.max), level: levelNumber)
+        self.init(size: size, mode: .campaign, level: level, levelNumber: levelNumber, runStats: runStats,
+                  players: [Player(slot: .host)], localSlot: .host)
+    }
+
+    convenience init(size: CGSize, versus settings: MatchSettings, role: VersusRole) {
+        let difficulty = settings.aiIntensity.difficultyLevel
+        let level = CityGenerator.generate(seed: settings.seed, level: difficulty, bases: 2)
+        self.init(size: size, mode: .versus(role), level: level, levelNumber: difficulty, runStats: RunStats(),
+                  players: PlayerSlot.allCases.map(Player.init(slot:)), localSlot: role.localSlot)
+        if !role.isGuest { match = MatchState(settings: settings) }
+        if role.link != nil { countdown = Self.countdownLength }
+        if role.isGuest { guestWorld = GuestWorld() }
+    }
+
+    private init(size: CGSize, mode: GameMode, level: Level, levelNumber: Int, runStats: RunStats,
+                 players: [Player], localSlot: PlayerSlot) {
+        self.mode = mode
+        self.level = level
         self.levelNumber = levelNumber
         self.runStats = runStats
-        self.level = CityGenerator.generate(seed: .random(in: 0...UInt64.max), level: levelNumber)
+        self.players = players
+        localPlayer = players.first { $0.slot == localSlot }!
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -53,10 +95,11 @@ final class GameScene: SKScene {
         guard !isSetUp else { return }
         isSetUp = true
         buildWorld()
+        if let link = versusRole?.link { attach(link) }
         // Keys released while the window is in the background never arrive; forget them.
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                 object: view.window, queue: .main) { [weak self] _ in
-            self?.input = InputState()
+            self?.localPlayer.input = InputState()
         }
     }
 
@@ -70,10 +113,9 @@ final class GameScene: SKScene {
         worldNode.addChild(renderer.root)
         effects = Effects(layer: worldNode)
 
-        let baseLabel = SKLabelNode.make("BASE", size: 40, color: NSColor(white: 1, alpha: 0.35))
-        baseLabel.position = level.map.center(level.baseCenter) - CGPoint(x: tileSize / 2, y: tileSize / 2)
-        baseLabel.zPosition = Z.tracks
-        worldNode.addChild(baseLabel)
+        for (index, base) in level.bases.enumerated() {
+            addBaseMarker(base, owner: isVersus ? PlayerSlot(rawValue: index) : nil)
+        }
 
         for cache in level.caches {
             let pickup = PickupNode(cache: cache)
@@ -82,34 +124,97 @@ final class GameScene: SKScene {
             pickups.append(pickup)
         }
 
-        playerTank.position = level.map.center(level.baseCenter)
-        playerTank.heading = .pi / 4
-        playerTank.turretAngle = .pi / 4
-        worldNode.addChild(playerTank)
-        spawnEnemies()
-        spawnInfantry()
+        for player in players {
+            placeAtBase(player)
+            worldNode.addChild(player.tank)
+        }
+        if !isGuest {   // the guest's AI arrives through snapshots
+            spawnEnemies()
+            spawnInfantry()
+        }
 
         addChild(cameraNode)
         camera = cameraNode
-        cameraBase = playerTank.position
+        cameraBase = localPlayer.tank.position
         cameraNode.position = cameraBase
         worldNode.addChild(targetMarker)
         setUpHUD()
     }
 
+    /// "BASE" painted on the ground; in versus, tinted in the owner's colour.
+    private func addBaseMarker(_ base: BaseSite, owner: PlayerSlot?) {
+        let label = SKLabelNode.make("BASE", size: 40, color: owner.map { $0.color.withAlphaComponent(0.7) } ?? NSColor(white: 1, alpha: 0.35))
+        label.position = level.map.center(base.center) - CGPoint(x: tileSize / 2, y: tileSize / 2)
+        label.zPosition = Z.tracks
+        worldNode.addChild(label)
+        guard let owner else { return }
+        let xs = base.tiles.map(\.x)
+        let ys = base.tiles.map(\.y)
+        let tint = SKSpriteNode(color: owner.color.withAlphaComponent(0.18),
+                                size: CGSize(width: CGFloat(xs.max()! - xs.min()! + 1) * tileSize,
+                                             height: CGFloat(ys.max()! - ys.min()! + 1) * tileSize))
+        tint.anchorPoint = .zero
+        tint.position = CGPoint(x: CGFloat(xs.min()!) * tileSize, y: CGFloat(ys.min()!) * tileSize)
+        tint.zPosition = Z.ground + 0.5
+        worldNode.addChild(tint)
+    }
+
+    /// Starts a player at their own base, facing the middle of the city.
+    func placeAtBase(_ player: Player) {
+        let tank = player.tank
+        tank.position = level.map.center(level.bases[player.slot.baseIndex].center)
+        let middle = CGPoint(x: CGFloat(level.map.width) * tileSize / 2, y: CGFloat(level.map.height) * tileSize / 2)
+        tank.heading = tank.position.angle(to: middle)
+        tank.turretAngle = tank.heading
+    }
+
+    /// A fresh id for a networked thing (AI tank, soldier, projectile, mortar).
+    func makeNetID() -> UInt32 {
+        lastNetID += 1
+        return lastNetID
+    }
+
     override func update(_ currentTime: TimeInterval) {
         let dt = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 30)
         lastUpdate = currentTime
+        versusRole?.link?.tick(dt: dt)
         guard !isGamePaused, !levelOver else { return }
-        updatePlayer(dt: dt)
-        updatePlayerWeapons(dt: dt)
-        updateEnemies(dt: dt)
-        updateInfantry(dt: dt)
-        updateProjectiles(dt: dt)
-        updateMortars(dt: dt)
+        if !updateCountdown(dt: dt) {
+            if isGuest {
+                updateGuest(dt: dt)
+            } else {
+                if versusRole?.isHost == true { applyRemoteInput() }
+                updatePlayers(dt: dt)
+                updateEnemies(dt: dt)
+                updateInfantry(dt: dt)
+                updateProjectiles(dt: dt)
+                updateMortars(dt: dt)
+                updateVersus(dt: dt)
+                if versusRole?.isHost == true { sendSnapshotIfDue(dt: dt) }
+            }
+            updateTargetMarker()
+            watchConnection()
+        }
         updateCamera(dt: dt)
         updateHUD()
         checkLevelEnd(dt: dt)
+    }
+
+    /// Returns true while the opening 3-2-1 is still running.
+    private func updateCountdown(dt: Double) -> Bool {
+        guard let remaining = countdown else { return false }
+        let next = remaining - dt
+        if next <= 0 {
+            countdown = nil
+            hud.flash("GO!", color: .systemGreen, duration: 0.8)
+            return false
+        }
+        let shownNow = Int(next.rounded(.up))
+        if remaining == Self.countdownLength || shownNow != Int(remaining.rounded(.up)) {
+            hud.flash("\(shownNow)", duration: 0.9)
+        }
+        countdown = next
+        return true
     }
 
     func shake(_ magnitude: CGFloat, duration: Double) {
@@ -120,7 +225,7 @@ final class GameScene: SKScene {
 
     func updateCamera(dt: Double) {
         let follow = CGFloat(min(1, 6 * dt))
-        var p = cameraBase + (playerTank.position - cameraBase) * follow
+        var p = cameraBase + (localPlayer.tank.position - cameraBase) * follow
         p.x = clampCamera(p.x, half: size.width / 2, extent: CGFloat(level.map.width) * tileSize)
         p.y = clampCamera(p.y, half: size.height / 2, extent: CGFloat(level.map.height) * tileSize)
         cameraBase = p
@@ -140,7 +245,7 @@ final class GameScene: SKScene {
     }
 
     func playSound(_ sound: Audio.Sound, at point: CGPoint, volume: Float = 1) {
-        let distance = Float(point.distance(to: playerTank.position))
+        let distance = Float(point.distance(to: localPlayer.tank.position))
         Audio.shared.play(sound, volume: volume * max(0, 1 - distance / 1400))
     }
 }

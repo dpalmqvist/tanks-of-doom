@@ -1,68 +1,87 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 extension GameScene {
     enum Impact {
-        case hostile(Hostile)
-        case player
+        case target(Hostile)
         case building(Int)
         case solid
     }
 
-    func fire(_ weapon: WeaponKind, from origin: CGPoint, angle: CGFloat, byPlayer: Bool, ownerBuilding: Int? = nil) {
-        let projectile = Projectile(weapon: weapon, angle: angle, byPlayer: byPlayer, ownerBuilding: ownerBuilding)
+    func fire(_ weapon: WeaponKind, from origin: CGPoint, angle: CGFloat, shooter: Combatant, ownerBuilding: Int? = nil) {
+        let projectile = Projectile(weapon: weapon, angle: angle, shooter: shooter, ownerBuilding: ownerBuilding)
+        projectile.netID = makeNetID()
         projectile.position = origin
         worldNode.addChild(projectile)
         projectiles.append(projectile)
+        // A guest plays their own muzzle flashes and gun sounds the moment they fire.
+        let audience: Audience = remotePlayer.map { remote -> Audience in
+            shooter == .player(remote.slot) ? .allBut(remote) : .everyone
+        } ?? .everyone
         switch weapon {
         case .mainGun, .enemyShell:
-            effects.muzzleFlash(at: origin, angle: angle, big: true)
-            playSound(.cannon, at: origin)
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: true), for: audience)
+            fx(.sound(.cannon, at: origin.vec, volume: 1), for: audience)
         case .bazooka:
-            playSound(.rocket, at: origin)
+            fx(.sound(.rocket, at: origin.vec, volume: 1), for: audience)
         default:
-            effects.muzzleFlash(at: origin, angle: angle, big: false)
-            playSound(.machineGun, at: origin, volume: 0.5)
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: false), for: audience)
+            fx(.sound(.machineGun, at: origin.vec, volume: 0.5), for: audience)
         }
     }
 
     func fireMortar(from origin: CGPoint, at target: CGPoint) {
         let shell = MortarShell(from: origin, to: target)
+        shell.netID = makeNetID()
         worldNode.addChild(shell.marker)
         worldNode.addChild(shell)
         mortars.append(shell)
-        playSound(.cannon, at: origin, volume: 0.4)
+        fx(.sound(.cannon, at: origin.vec, volume: 0.4))
     }
 
-    func updatePlayerWeapons(dt: Double) {
-        guard !playerTank.isDestroyed else { return }
-        playerTank.mainCooldown -= dt
-        playerTank.machineGunCooldown -= dt
+    func updateWeapons(for player: Player, dt: Double) {
+        let tank = player.tank
+        guard !tank.isDestroyed, !tank.isHidden else { return }
+        tank.mainCooldown -= dt
+        tank.machineGunCooldown -= dt
 
-        if input.firePrimary && playerTank.mainCooldown <= 0 {
-            if playerTank.stats.consumeShell() {
-                fire(.mainGun, from: playerTank.muzzlePosition, angle: playerTank.turretAngle, byPlayer: true)
-                playerTank.mainCooldown = Combat.spec(.mainGun).reload
-                shake(4, duration: 0.15)
+        if player.input.firePrimary && tank.mainCooldown <= 0 {
+            if tank.stats.consumeShell() {
+                fire(.mainGun, from: tank.muzzlePosition, angle: tank.turretAngle, shooter: .player(player.slot))
+                match?.playerFired(player.slot)
+                tank.mainCooldown = Combat.spec(.mainGun).reload
+                if player !== remotePlayer { fx(.shake(magnitude: 4, duration: 0.15), for: .only(player)) }
             } else {
-                playerTank.mainCooldown = 0.5
-                Audio.shared.play(.empty)
-                effects.floatingText("NO SHELLS", at: playerTank.position + CGPoint(x: 0, y: 40), color: .systemYellow)
+                tank.mainCooldown = 0.5
+                fx(.uiSound(.empty, volume: 1), for: .only(player))
+                fx(.text("NO SHELLS", at: (tank.position + CGPoint(x: 0, y: 40)).vec, color: .yellow), for: .only(player))
             }
         }
 
-        if input.fireSecondary && playerTank.machineGunCooldown <= 0 {
-            if playerTank.stats.consumeRound() {
-                let side = CGPoint(angle: playerTank.turretAngle - .pi / 2, length: 7)
-                let origin = playerTank.position + CGPoint(angle: playerTank.turretAngle, length: 30) + side
-                fire(.machineGun, from: origin, angle: playerTank.turretAngle + .random(in: -0.04...0.04), byPlayer: true)
-                playerTank.machineGunCooldown = Combat.spec(.machineGun).reload
+        if player.input.fireSecondary && tank.machineGunCooldown <= 0 {
+            if tank.stats.consumeRound() {
+                let side = CGPoint(angle: tank.turretAngle - .pi / 2, length: 7)
+                let origin = tank.position + CGPoint(angle: tank.turretAngle, length: 30) + side
+                fire(.machineGun, from: origin, angle: tank.turretAngle + .random(in: -0.04...0.04), shooter: .player(player.slot))
+                match?.playerFired(player.slot)
+                tank.machineGunCooldown = Combat.spec(.machineGun).reload
             } else {
-                playerTank.machineGunCooldown = 0.5
-                Audio.shared.play(.empty)
-                effects.floatingText("NO MG AMMO", at: playerTank.position + CGPoint(x: 0, y: 40), color: .systemYellow)
+                tank.machineGunCooldown = 0.5
+                fx(.uiSound(.empty, volume: 1), for: .only(player))
+                fx(.text("NO MG AMMO", at: (tank.position + CGPoint(x: 0, y: 40)).vec, color: .yellow), for: .only(player))
             }
+        }
+    }
+
+    /// What a shot can hurt: players hit the AI and each other; the AI hits players only.
+    func targets(of shooter: Combatant) -> [Hostile] {
+        switch shooter {
+        case .player(let slot):
+            return (enemies as [Hostile]) + (infantry as [Hostile]) + players.filter { $0.slot != slot }.map(\.tank)
+        case .enemyTank, .infantry:
+            return players.map(\.tank)
         }
     }
 
@@ -105,12 +124,8 @@ extension GameScene {
     }
 
     private func collision(for projectile: Projectile, at point: CGPoint) -> Impact? {
-        if projectile.byPlayer {
-            if let target = hostiles.first(where: { $0.canBeHit && $0.position.distance(to: point) < $0.hitRadius }) {
-                return .hostile(target)
-            }
-        } else if !playerTank.isDestroyed && playerTank.position.distance(to: point) < TankNode.radius {
-            return .player
+        if let target = targets(of: projectile.shooter).first(where: { $0.canBeHit && $0.position.distance(to: point) < $0.hitRadius }) {
+            return .target(target)
         }
         let tile = level.map[level.map.grid(point)]
         if let id = tile.buildingID {
@@ -122,13 +137,10 @@ extension GameScene {
     private func resolve(_ impact: Impact, projectile: Projectile, at point: CGPoint) {
         var direct: AnyObject?
         switch impact {
-        case .hostile(let target):
+        case .target(let target):
             direct = target
             let damage = Combat.damage(projectile.weapon, to: target.targetKind, distance: 0)
-            if damage > 0 { target.applyDamage(damage, in: self) }
-        case .player:
-            direct = playerTank
-            damagePlayer(Combat.damage(projectile.weapon, to: .tank, distance: 0))
+            if damage > 0 { target.applyDamage(damage, from: projectile.shooter, in: self) }
         case .building(let id):
             let damage = Combat.damage(projectile.weapon, to: .building, distance: 0)
             if damage > 0 { damageBuilding(id, amount: damage) }
@@ -138,29 +150,24 @@ extension GameScene {
         if Combat.spec(projectile.weapon).splashRadius > 0 {
             detonate(projectile, at: point, direct: direct)
         } else {
-            effects.spark(at: point)
+            fx(.spark(at: point.vec))
             removeProjectile(projectile)
         }
     }
 
     private func detonate(_ projectile: Projectile, at point: CGPoint, direct: AnyObject?) {
-        applySplash(projectile.weapon, at: point, byPlayer: projectile.byPlayer, excluding: direct)
+        applySplash(projectile.weapon, at: point, from: projectile.shooter, excluding: direct)
         let heavy = projectile.weapon == .mainGun || projectile.weapon == .enemyShell
-        effects.explosion(at: point, scale: heavy ? 1.0 : 0.7)
-        playSound(.explosion, at: point, volume: 0.7)
+        fx(.explosion(at: point.vec, scale: heavy ? 1.0 : 0.7))
+        fx(.sound(.explosion, at: point.vec, volume: 0.7))
         removeProjectile(projectile)
     }
 
     /// Splash damage around an impact; `excluding` already took the direct hit.
-    func applySplash(_ weapon: WeaponKind, at point: CGPoint, byPlayer: Bool, excluding: AnyObject?) {
-        if byPlayer {
-            for target in hostiles where target.canBeHit && target !== excluding {
-                let damage = Combat.damage(weapon, to: target.targetKind, distance: Double(target.position.distance(to: point)))
-                if damage > 0 { target.applyDamage(damage, in: self) }
-            }
-        } else if excluding !== playerTank && !playerTank.isDestroyed {
-            let damage = Combat.damage(weapon, to: .tank, distance: Double(playerTank.position.distance(to: point)))
-            if damage > 0 { damagePlayer(damage) }
+    func applySplash(_ weapon: WeaponKind, at point: CGPoint, from shooter: Combatant, excluding: AnyObject?) {
+        for target in targets(of: shooter) where target.canBeHit && target !== excluding {
+            let damage = Combat.damage(weapon, to: target.targetKind, distance: Double(target.position.distance(to: point)))
+            if damage > 0 { target.applyDamage(damage, from: shooter, in: self) }
         }
     }
 
@@ -172,43 +179,46 @@ extension GameScene {
     func updateMortars(dt: Double) {
         for shell in mortars {
             guard shell.advance(dt: dt) else { continue }
-            applySplash(.mortar, at: shell.target, byPlayer: false, excluding: nil)
-            effects.explosion(at: shell.target, scale: 0.9)
-            playSound(.explosion, at: shell.target, volume: 0.8)
+            applySplash(.mortar, at: shell.target, from: .infantry(.mortar), excluding: nil)
+            fx(.explosion(at: shell.target.vec, scale: 0.9))
+            fx(.sound(.explosion, at: shell.target.vec, volume: 0.8))
             shell.marker.removeFromParent()
             shell.removeFromParent()
             mortars.removeAll { $0 === shell }
         }
     }
 
-    func damagePlayer(_ amount: Int) {
-        guard amount > 0, !playerTank.isDestroyed else { return }
-        playerTank.stats.takeDamage(amount)
-        effects.floatingText("-\(amount)", at: playerTank.position + CGPoint(x: 0, y: 36), color: .systemRed)
-        Audio.shared.play(.hit, volume: 0.8)
-        shake(min(14, 3 + CGFloat(amount) * 0.5), duration: 0.25)
-        if playerTank.isDestroyed {
-            effects.explosion(at: playerTank.position, scale: 2.2)
-            playSound(.bigExplosion, at: playerTank.position)
-            playerTank.showWreck()
-            shake(20, duration: 0.6)
-        }
+    /// `shooter` is nil when the player abandons their own tank.
+    func damagePlayer(_ tank: PlayerTank, _ amount: Int, from shooter: Combatant?) {
+        guard amount > 0, !tank.isDestroyed, !tank.isInvulnerable,
+              let victim = players.first(where: { $0.tank === tank }) else { return }
+        tank.stats.takeDamage(amount)
+        fx(.text("-\(amount)", at: (tank.position + CGPoint(x: 0, y: 36)).vec, color: .red))
+        fx(.uiSound(.hit, volume: 0.8), for: .only(victim))
+        fx(.shake(magnitude: Float(min(14, 3 + CGFloat(amount) * 0.5)), duration: 0.25), for: .only(victim))
+        guard tank.isDestroyed else { return }
+        fx(.explosion(at: tank.position.vec, scale: 2.2))
+        fx(.sound(.bigExplosion, at: tank.position.vec, volume: 1))
+        tank.showWreck()
+        fx(.shake(magnitude: 20, duration: 0.6), for: .only(victim))
+        playerDestroyed(tank, by: shooter)
     }
 
     func damageBuilding(_ id: Int, amount: Int) {
         let result = level.damageBuilding(id, by: amount)
         guard result != .none else { return }
         renderer.update(level.buildings[id])
+        fx(.buildingHP(id: UInt16(id), hp: Int16(clamping: level.buildings[id].hp)), for: .allBut(localPlayer))
         if result == .destroyed { buildingDestroyed(id) }
     }
 
     func buildingDestroyed(_ id: Int) {
         killOccupants(of: id)
         let center = level.buildings[id].worldCenter
-        effects.explosion(at: center, scale: 2.0)
-        effects.dustPuff(at: center)
-        playSound(.bigExplosion, at: center)
-        shake(10, duration: 0.4)
+        fx(.explosion(at: center.vec, scale: 2.0))
+        fx(.dust(at: center.vec))
+        fx(.sound(.bigExplosion, at: center.vec, volume: 1))
+        fx(.shake(magnitude: 10, duration: 0.4))
         hud.minimap.refresh(map: level.map)
     }
 }

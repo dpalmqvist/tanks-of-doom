@@ -3,6 +3,10 @@ import TanksCore
 
 final class PickupNode: SKSpriteNode {
     let kind: CacheKind
+    /// Collected pickups stay in the scene, hidden, so versus can bring them back (and indices stay stable for the guest).
+    var isAvailable = true {
+        didSet { isHidden = !isAvailable }
+    }
 
     init(cache: Cache) {
         kind = cache.kind
