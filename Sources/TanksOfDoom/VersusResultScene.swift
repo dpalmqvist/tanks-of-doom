@@ -13,6 +13,8 @@ final class VersusResultScene: SKScene {
     private var wantsRematch = false
     private var opponentWantsRematch: Bool
     private var opponentLeft: Bool
+    /// A guest-side rematch start that arrived before the scene was in a view.
+    private var pendingMatchStart: MatchSettings?
 
     init(size: CGSize, result: VersusResult, link: MatchLink, settings: MatchSettings, isHost: Bool,
          opponentWantsRematch: Bool, opponentLeft: Bool) {
@@ -25,11 +27,8 @@ final class VersusResultScene: SKScene {
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = NSColor(calibratedRed: 0.07, green: 0.07, blue: 0.06, alpha: 1)
-    }
-
-    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func didMove(to view: SKView) {
+        // Bound here, not in didMove: the scene transition can delay didMove, and the finished
+        // GameScene's handlers must not swallow messages in the meantime.
         link.onMessage = { [weak self] message in self?.receive(message) }
         link.onClosed = { [weak self] _ in
             self?.opponentLeft = true
@@ -37,7 +36,18 @@ final class VersusResultScene: SKScene {
         }
         // The finished GameScene's handler is gone; failures fall back to onClosed.
         link.onFailed = nil
+    }
+
+    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func didMove(to view: SKView) {
         render()
+        if let next = pendingMatchStart {
+            pendingMatchStart = nil
+            startGuestMatch(next)
+        } else {
+            startIfBothWant()
+        }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -50,7 +60,11 @@ final class VersusResultScene: SKScene {
             opponentWantsRematch = true
             startIfBothWant()
         case .matchStart(let next) where !isHost:
-            view?.presentScene(GameScene(size: size, versus: next, role: .guest(link)), transition: .fade(withDuration: 0.6))
+            if view == nil {
+                pendingMatchStart = next
+            } else {
+                startGuestMatch(next)
+            }
             return
         case .leave:
             opponentLeft = true
@@ -58,6 +72,10 @@ final class VersusResultScene: SKScene {
             break
         }
         render()
+    }
+
+    private func startGuestMatch(_ next: MatchSettings) {
+        view?.presentScene(GameScene(size: size, versus: next, role: .guest(link)), transition: .fade(withDuration: 0.6))
     }
 
     private func startIfBothWant() {
