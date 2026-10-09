@@ -34,6 +34,10 @@ final class GameScene: SKScene {
     /// Networked matches open with 3-2-1 so both Macs start together.
     var countdown: Double?
     var matchWinner: PlayerSlot?
+    var leavePromptShown = false
+    /// Messages that can arrive while the match is ending, handed on to the result screen.
+    var opponentRequestedRematch = false
+    var opponentLeft = false
     static let countdownLength = 3.0
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []

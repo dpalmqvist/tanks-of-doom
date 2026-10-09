@@ -16,12 +16,14 @@ extension GameScene {
         case .input(let frame): remoteInput.receive(frame, at: lastUpdate)
         case .snapshot(let snapshot): receiveSnapshot(snapshot)
         case .leave: linkClosed("Opponent left")
+        case .rematch: opponentRequestedRematch = true
         default: break
         }
     }
 
     /// The other side is gone: whoever is still here wins.
     func linkClosed(_ reason: String?) {
+        opponentLeft = true
         guard isVersus, endTimer == nil else { return }
         hud.flash((reason ?? "Connection lost").uppercased(), color: .systemOrange, duration: 3)
         match?.playerLeft(localPlayer.slot.opponent)

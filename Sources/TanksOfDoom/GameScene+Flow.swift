@@ -37,12 +37,27 @@ extension GameScene {
         }
     }
 
+    /// Quit a networked match from the leave prompt; the opponent is told and wins.
+    func leaveMatch() {
+        guard let link = versusRole?.link, let view else { return }
+        link.send(.leave)
+        link.close()
+        levelOver = true
+        view.presentScene(MenuScene.title(size: size), transition: .fade(withDuration: 0.6))
+    }
+
     private func finishLevel() {
         levelOver = true
         guard let view else { return }
         if isVersus {
-            versusRole?.link?.close()
-            view.presentScene(MenuScene.versusResult(size: size, result: versusResult()), transition: .fade(withDuration: 0.8))
+            if let link = versusRole?.link {
+                let result = VersusResultScene(size: size, result: versusResult(), link: link,
+                                               settings: match?.settings ?? MatchSettings(), isHost: versusRole?.isHost == true,
+                                               opponentWantsRematch: opponentRequestedRematch, opponentLeft: opponentLeft)
+                view.presentScene(result, transition: .fade(withDuration: 0.8))
+            } else {
+                view.presentScene(MenuScene.versusResult(size: size, result: versusResult()), transition: .fade(withDuration: 0.8))
+            }
             return
         }
         if victory {

@@ -60,6 +60,7 @@ final class HUD: SKNode {
     private let statusLabel = SKLabelNode.hud(size: 18)
     private let messageLabel = SKLabelNode.make("", size: 34)
     private let pausedLabel = SKLabelNode.make("PAUSED", size: 64)
+    private let leaveLabel = SKLabelNode.make("LEAVE MATCH?  Y / N", size: 48, color: .systemOrange)
     private let isVersus: Bool
     private let livesLabel = SKLabelNode.hud(size: 20)
     private let respawnLabel = SKLabelNode.make("", size: 44)
@@ -83,6 +84,8 @@ final class HUD: SKNode {
         // Text stays readable on top of the (enlarged) minimap.
         statusLabel.zPosition = 5
         messageLabel.zPosition = 5
+        leaveLabel.zPosition = 7
+        leaveLabel.isHidden = true
         pausedLabel.zPosition = 6
         pausedLabel.isHidden = true
         for label in [respawnLabel, livesLeftLabel, noticeLabel] {
@@ -92,7 +95,7 @@ final class HUD: SKNode {
         levelLabel.isHidden = versus
         enemiesLabel.isHidden = versus
         livesLabel.isHidden = !versus
-        for node in [armorBar, fuelBar, ammoLabel, levelLabel, enemiesLabel, statusLabel, messageLabel, pausedLabel, minimap,
+        for node in [armorBar, fuelBar, ammoLabel, levelLabel, enemiesLabel, statusLabel, messageLabel, pausedLabel, leaveLabel, minimap,
                      livesLabel, respawnLabel, livesLeftLabel, noticeLabel, latencyLabel] as [SKNode] {
             addChild(node)
         }
@@ -114,6 +117,7 @@ final class HUD: SKNode {
         statusLabel.position = CGPoint(x: 0, y: bottom + 40)
         messageLabel.position = CGPoint(x: 0, y: size.height / 2 - 110)
         pausedLabel.position = .zero
+        leaveLabel.position = .zero
         minimap.position = CGPoint(x: right - minimap.displaySize, y: bottom + 20)
         livesLabel.position = CGPoint(x: 0, y: top)
         respawnLabel.position = CGPoint(x: 0, y: 40)
@@ -204,6 +208,10 @@ final class HUD: SKNode {
 
     private static func hearts(_ count: Int) -> String {
         count <= 0 ? "–" : String(repeating: "♥", count: count)
+    }
+
+    func setLeavePrompt(_ shown: Bool) {
+        leaveLabel.isHidden = !shown
     }
 
     func setPaused(_ paused: Bool) {

@@ -12,7 +12,17 @@ extension GameScene {
     func handleKeyPress(_ code: UInt16) {
         switch code {
         case 46: hud.toggleMinimap()                   // M
-        case 53: togglePause()                         // Esc
+        case 53:                                       // Esc
+            if versusRole?.link != nil {
+                leavePromptShown.toggle()
+                hud.setLeavePrompt(leavePromptShown)
+            } else {
+                togglePause()
+            }
+        case 16 where leavePromptShown: leaveMatch()   // Y
+        case 45 where leavePromptShown:                // N
+            leavePromptShown = false
+            hud.setLeavePrompt(false)
         case 15: press(InputFrame.abandon) { abandonTank(localPlayer) }            // R
         case 48: press(InputFrame.cycleTarget) { cycleTarget(for: localPlayer) }   // Tab
         case 12, 14: press(InputFrame.manualTurret) { localPlayer.turretAim.manualInput() }   // Q, E
