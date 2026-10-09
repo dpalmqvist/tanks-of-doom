@@ -60,13 +60,14 @@ The single-player campaign stays exactly as it is.
 | `TanksCore` | library | Foundation | Existing game logic, plus match rules, respawn selection, two-base city generation. |
 | `TanksNet` | library (new) | Foundation, `TanksCore` | Wire protocol: message types, binary encoding/decoding, protocol version. No networking I/O. |
 | `TanksOfDoom` | executable | `TanksCore`, `TanksNet` | Game app. Gains the multiplayer session, host/client loops, lobby screens and HUD additions. |
-| `TanksRelay` | executable (new) | `TanksNet`, SwiftNIO (`NIOCore`, `NIOPosix`, `NIOHTTP1`, `NIOWebSocket`) | Relay server: rooms, pairing, forwarding. |
+| `TanksRelayCore` | library (new) | `TanksNet`, SwiftNIO (`NIOCore`, `NIOPosix`, `NIOHTTP1`, `NIOWebSocket`) | Relay logic (rooms, pairing, rate limits) and the WebSocket server. A library so it can be unit tested. |
+| `TanksRelay` | executable (new) | `TanksRelayCore` | Relay server entry point: reads `PORT` / `ROOM_TTL` and runs the server. |
 | `TanksCoreTests` | test | `TanksCore` | Existing plus new match-rule tests. |
 | `TanksNetTests` | test (new) | `TanksNet` | Encode/decode round trips, version checks, malformed input. |
-| `TanksRelayTests` | test (new) | `TanksRelay` | Room creation, joining, forwarding, disconnect handling. |
+| `TanksRelayCoreTests` | test (new) | `TanksRelayCore` | Room creation, joining, forwarding, disconnect handling. |
 
 SwiftNIO is the project's first third-party dependency and is used only by
-`TanksRelay`. The game app stays dependency-free.
+`TanksRelayCore` / `TanksRelay`. The game app stays dependency-free.
 
 ### Roles
 
@@ -172,7 +173,7 @@ the connection.
 | `roomCreated` | relay → game | 5-letter code (A–Z without I/O, so codes are easy to read aloud) |
 | `joinRoom` | game → relay | code |
 | `joined` | relay → both | peer is present; the forwarding phase begins |
-| `error` | relay → game | reason: `versionMismatch`, `roomNotFound`, `roomFull` |
+| `error` | relay → game | reason: `versionMismatch`, `roomNotFound`, `roomFull`, `serverFull`, `protocolError` |
 | `peerLeft` | relay → game | the other side disconnected |
 
 After `joined`, every frame the relay receives is forwarded unchanged to the
@@ -186,13 +187,14 @@ other side.
 | `guestReady` | guest → host | on change | ready flag |
 | `matchStart` | host → guest | once | seed, settings (both sides show a 3-2-1 countdown, then the host starts simulating) |
 | `input` | guest → host | 30 Hz | sequence number, input bits (forward, back, left, right, turret L/R, fire main, fire MG), discrete presses since last frame (Tab, Q/E manual) |
-| `snapshot` | host → guest | 20 Hz | host tick, last processed guest input seq, both players (position, heading, turret, stats, lives, flags), AI tanks (id, position, heading, turret, alive), infantry (id, exposed, facing), projectiles and mortars (id, kind, position, angle), pickups present (bitset) |
-| `event` | host → guest | when it happens | building damaged/destroyed (id, stage), explosion (position, scale), floating text, sound cue, kill feed entry, player died / respawned, match over (winner) |
+| `snapshot` | host → guest | 20 Hz | host tick, last processed guest input seq, both players (position, heading, turret, stats, lives, flags), AI tanks (id, position, heading, turret, health), exposed infantry (id, kind, position, facing), projectiles and mortars (id, kind, position, angle), pickups present (bitset), and the events since the previous snapshot |
 | `ping` / `pong` | both | 1 Hz | timestamp, used for the latency display and disconnect detection |
 | `leave` | both | once | the player quit on purpose |
 
-Events are sent in order over the same TCP stream, so they need no
-acknowledgement. Rough snapshot size with heavy AI is under 2 KB, which is
+Events (building HP changes, explosions, floating text, sound cues, screen
+shake, kill feed entries, match over) ride inside the next snapshot frame, so
+they arrive in order with no acknowledgement and the host never sends more
+than about 21 frames per second. Rough snapshot size with heavy AI is under 2 KB, which is
 about 40 KB/s, well within any connection.
 
 ## Netcode
@@ -204,8 +206,8 @@ about 40 KB/s, well within any connection.
   are applied once.
 - If no guest input has arrived for 250 ms, the guest's held keys are
   released, so the tank stops rather than driving off on its own.
-- Every 50 ms, builds and sends a `snapshot`. Anything that happens once is
-  sent as an `event` immediately.
+- Every 50 ms, builds and sends a `snapshot`, carrying every event queued
+  since the previous one.
 
 ### Client loop
 
@@ -215,7 +217,9 @@ about 40 KB/s, well within any connection.
   inputs. On each snapshot, takes the host's position for the guest tank,
   replays the inputs newer than `lastProcessedInputSeq`, and if the result is
   more than 2 px from the predicted position, eases toward it over 100 ms. If
-  it is more than 64 px away, it snaps. Turret angle is predicted the same way.
+  it is more than 64 px away, it snaps. The turret angle is not predicted: the
+  host aims it (auto-aim picks targets on the host), and the guest shows the
+  host's angle, so shots always leave the barrel where it is drawn.
 - **Everything else, interpolation:** renders the opponent, AI, infantry and
   projectiles 100 ms in the past, interpolating between the two surrounding
   snapshots. Entities are created and removed as they appear in or disappear
@@ -223,7 +227,7 @@ about 40 KB/s, well within any connection.
 - Firing: the client plays the muzzle flash and sound immediately for
   responsiveness. The real projectile appears when the host's snapshot
   includes it.
-- Building damage, explosions and kill-feed entries come from `event`s and use
+- Building damage, explosions and kill-feed entries come from events and use
   the existing `Effects` and `WorldRenderer` code paths.
 - The client does not run AI, damage, pickup collection, base repair or match
   rules. Its HUD numbers come from the snapshot.
@@ -321,9 +325,10 @@ the title screen. Versus results are not recorded in campaign high scores.
   same level as before for a given seed.
 - **TanksNet:** encode→decode round trips for every message, truncated and
   garbage input throws, version constant is checked.
-- **TanksRelay:** using NIO's `EmbeddedChannel` or an in-process server on a
-  random port: create/join/pair, wrong code, full room, forwarding in both
-  directions, `peerLeft` on close, version mismatch rejection.
+- **TanksRelayCore:** the relay logic tested as plain values (no sockets), plus
+  an in-process server on a random port driven by two real WebSocket clients:
+  create/join/pair, wrong code, full room, forwarding in both directions,
+  `peerLeft` on close, version mismatch rejection.
 - **Manual:** run `swift run TanksRelay` locally and two game instances with
   `TANKS_RELAY_URL=ws://localhost:8080/ws`. Play a full match: deaths by
   opponent and by AI, respawns, the win screen, rematch, quitting mid-match.
