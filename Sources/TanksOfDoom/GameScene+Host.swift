@@ -8,6 +8,7 @@ extension GameScene {
     func attach(_ link: MatchLink) {
         link.onMessage = { [weak self] message in self?.receive(message) }
         link.onClosed = { [weak self] reason in self?.linkClosed(reason) }
+        link.onFailed = { [weak self] reason in self?.connectionFailed(reason) }
     }
 
     func receive(_ message: GameMessage) {
@@ -25,6 +26,20 @@ extension GameScene {
         hud.flash((reason ?? "Connection lost").uppercased(), color: .systemOrange, duration: 3)
         match?.playerLeft(localPlayer.slot.opponent)
         matchEnded(winner: localPlayer.slot)
+    }
+
+    /// This Mac lost the relay: nobody wins; show the error and go back to the menu.
+    func connectionFailed(_ reason: String?) {
+        guard isVersus, !levelOver else { return }
+        levelOver = true
+        versusRole?.link?.close()
+        guard let view else { return }
+        let lines = [MenuScene.Line(text: "CONNECTION LOST", size: 72, color: .systemRed),
+                     MenuScene.Line(text: reason ?? "Can't reach server", size: 24)]
+        let error = MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO CONTINUE") { scene in
+            scene.view?.presentScene(MenuScene.title(size: scene.size), transition: .fade(withDuration: 0.6))
+        }
+        view.presentScene(error, transition: .fade(withDuration: 0.8))
     }
 
     /// Gives up on a silent opponent.

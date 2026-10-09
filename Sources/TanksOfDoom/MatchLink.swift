@@ -12,6 +12,8 @@ final class MatchLink {
     var onMessage: ((GameMessage) -> Void)?
     /// The opponent left or the connection died.
     var onClosed: ((String?) -> Void)?
+    /// This Mac's own connection to the relay died.
+    var onFailed: ((String?) -> Void)?
     private(set) var latencyMs: Int?
     private var lastHeard = ProcessInfo.processInfo.systemUptime
     private var pingTimer = 0.0
@@ -56,7 +58,11 @@ final class MatchLink {
         case .relay:
             break
         case .closed(let reason):
-            onClosed?(reason)
+            if let onFailed {
+                onFailed(reason)
+            } else {
+                onClosed?(reason)
+            }
         }
     }
 }
