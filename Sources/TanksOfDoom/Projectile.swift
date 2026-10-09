@@ -66,12 +66,19 @@ final class MortarShell: SKSpriteNode {
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    /// 0 at launch, 1 on landing.
+    var progress: Double { min(1, elapsed / Self.flightTime) }
+
     /// Advances along the arc; returns true on landing.
     func advance(dt: Double) -> Bool {
         elapsed += dt
-        let t = CGFloat(min(1, elapsed / Self.flightTime))
+        show(progress: CGFloat(progress))
+        return progress >= 1
+    }
+
+    /// Puts the shell at `t` along its arc (the guest drives this from snapshots).
+    func show(progress t: CGFloat) {
         position = start + (target - start) * t
         setScale(1 + 1.8 * sin(.pi * t))
-        return t >= 1
     }
 }

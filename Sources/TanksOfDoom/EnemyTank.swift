@@ -32,6 +32,16 @@ final class EnemyTank: TankNode, Hostile {
     var targetKind: TargetKind { .tank }
     var canBeHit: Bool { armor > 0 }
 
+    var armorFraction: Double { max(0, armor / maxArmor) }
+
+    /// Guest side: show the health the host reports.
+    func showHealth(_ fraction: Double) {
+        guard fraction < 1 else { return }
+        healthBack.isHidden = false
+        healthBar.isHidden = false
+        healthBar.xScale = CGFloat(max(0, fraction))
+    }
+
     init(spawn: EnemyTankSpawn, difficulty: Difficulty) {
         maxArmor = Double(difficulty.enemyTankArmor)
         armor = maxArmor

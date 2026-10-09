@@ -4,7 +4,7 @@ import TanksCore
 
 extension GameScene {
     func togglePause() {
-        guard endTimer == nil else { return }
+        guard endTimer == nil, versusRole?.link == nil else { return }
         isGamePaused.toggle()
         worldNode.isPaused = isGamePaused
         localPlayer.input = InputState()
@@ -41,6 +41,7 @@ extension GameScene {
         levelOver = true
         guard let view else { return }
         if isVersus {
+            versusRole?.link?.close()
             view.presentScene(MenuScene.versusResult(size: size, result: versusResult()), transition: .fade(withDuration: 0.8))
             return
         }

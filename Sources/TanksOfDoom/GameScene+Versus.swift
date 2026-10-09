@@ -17,6 +17,8 @@ extension GameScene {
         return false
     }
 
+    var isGuest: Bool { versusRole?.isGuest == true }
+
     var versusRole: VersusRole? {
         if case .versus(let role) = mode { return role }
         return nil
@@ -48,9 +50,24 @@ extension GameScene {
 
     /// What the versus overlay should show right now; nil in the campaign.
     func versusHUDState() -> VersusHUDState? {
-        guard let match else { return nil }
-        return VersusHUDState(localSlot: localPlayer.slot, lives: match.lives,
-                              respawnIn: match.respawnRemaining(localPlayer.slot), latencyMs: nil, notice: nil)
+        guard let role = versusRole else { return nil }
+        var state: VersusHUDState
+        if let match {
+            state = VersusHUDState(localSlot: localPlayer.slot, lives: match.lives,
+                                   respawnIn: match.respawnRemaining(localPlayer.slot), latencyMs: nil, notice: nil)
+        } else {
+            let latest = guestWorld?.buffer.latest
+            var lives: [PlayerSlot: Int] = [:]
+            for p in latest?.players ?? [] { lives[p.slot] = Int(p.lives) }
+            let mine = latest?.players.first { $0.slot == localPlayer.slot }
+            let respawnIn = mine.flatMap { $0.has(PlayerSnapshot.respawning) ? Double($0.respawnIn) : nil }
+            state = VersusHUDState(localSlot: localPlayer.slot, lives: lives, respawnIn: respawnIn, latencyMs: nil, notice: nil)
+        }
+        if let link = role.link {
+            state.latencyMs = link.latencyMs
+            if link.silence > MatchLink.lostAfter && endTimer == nil { state.notice = "CONNECTION LOST…" }
+        }
+        return state
     }
 
     /// A player tank just blew up: score it, leave a wreck and take the tank off the field until it respawns.
@@ -84,14 +101,24 @@ extension GameScene {
 
     func matchEnded(winner: PlayerSlot) {
         guard endTimer == nil else { return }
+        matchWinner = winner
         let won = winner == localPlayer.slot
         endTimer = 3
         hud.flash(won ? "VICTORY!" : "DEFEAT", color: won ? .systemGreen : .systemRed, duration: 3)
     }
 
     func versusResult() -> VersusResult {
-        let state = match ?? MatchState(settings: MatchSettings())
-        return VersusResult(winner: state.winner ?? localPlayer.slot, localSlot: localPlayer.slot,
-                            lives: state.lives, kills: state.kills)
+        var lives: [PlayerSlot: Int] = [:]
+        var kills: [PlayerSlot: Int] = [:]
+        if let match {
+            lives = match.lives
+            kills = match.kills
+        } else {
+            for p in guestWorld?.buffer.latest?.players ?? [] {
+                lives[p.slot] = Int(p.lives)
+                kills[p.slot] = Int(p.kills)
+            }
+        }
+        return VersusResult(winner: matchWinner ?? localPlayer.slot, localSlot: localPlayer.slot, lives: lives, kills: kills)
     }
 }

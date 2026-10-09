@@ -4,25 +4,31 @@ import TanksCore
 enum VersusRole {
     /// Debug only: both players on this keyboard (TANKS_HOTSEAT=1).
     case hotSeat
+    /// Runs the simulation and streams it to the guest.
+    case host(MatchLink)
+    /// Sends its keys and mirrors what the host streams.
+    case guest(MatchLink)
 
     /// The player at this keyboard.
     var localSlot: PlayerSlot {
-        switch self {
-        case .hotSeat: return .host
-        }
+        if case .guest = self { return .guest }
+        return .host
     }
 
-    /// This Mac runs the simulation and streams it to another Mac.
     var isHost: Bool {
-        switch self {
-        case .hotSeat: return false
-        }
+        if case .host = self { return true }
+        return false
     }
 
-    /// This Mac only mirrors what the host sends.
     var isGuest: Bool {
+        if case .guest = self { return true }
+        return false
+    }
+
+    var link: MatchLink? {
         switch self {
-        case .hotSeat: return false
+        case .hotSeat: return nil
+        case .host(let link), .guest(let link): return link
         }
     }
 }

@@ -25,6 +25,16 @@ final class GameScene: SKScene {
     var pickupQueue = RespawnQueue<Int>()
     /// Effects waiting to ride along with the next snapshot to the guest.
     var outgoingEvents: [GameEvent] = []
+    /// Host: the guest's latest keys.
+    var remoteInput = RemoteInput()
+    var snapshotTimer = 0.0
+    var hostTick: UInt32 = 0
+    /// Guest: everything mirrored from the host.
+    var guestWorld: GuestWorld?
+    /// Networked matches open with 3-2-1 so both Macs start together.
+    var countdown: Double?
+    var matchWinner: PlayerSlot?
+    static let countdownLength = 3.0
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
@@ -58,6 +68,8 @@ final class GameScene: SKScene {
         self.init(size: size, mode: .versus(role), level: level, levelNumber: difficulty, runStats: RunStats(),
                   players: PlayerSlot.allCases.map(Player.init(slot:)), localSlot: role.localSlot)
         if !role.isGuest { match = MatchState(settings: settings) }
+        if role.link != nil { countdown = Self.countdownLength }
+        if role.isGuest { guestWorld = GuestWorld() }
     }
 
     private init(size: CGSize, mode: GameMode, level: Level, levelNumber: Int, runStats: RunStats,
@@ -79,6 +91,7 @@ final class GameScene: SKScene {
         guard !isSetUp else { return }
         isSetUp = true
         buildWorld()
+        if let link = versusRole?.link { attach(link) }
         // Keys released while the window is in the background never arrive; forget them.
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                 object: view.window, queue: .main) { [weak self] _ in
@@ -111,8 +124,10 @@ final class GameScene: SKScene {
             placeAtBase(player)
             worldNode.addChild(player.tank)
         }
-        spawnEnemies()
-        spawnInfantry()
+        if !isGuest {   // the guest's AI arrives through snapshots
+            spawnEnemies()
+            spawnInfantry()
+        }
 
         addChild(cameraNode)
         camera = cameraNode
@@ -158,17 +173,44 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 30)
         lastUpdate = currentTime
+        versusRole?.link?.tick(dt: dt)
         guard !isGamePaused, !levelOver else { return }
-        updatePlayers(dt: dt)
-        updateEnemies(dt: dt)
-        updateInfantry(dt: dt)
-        updateProjectiles(dt: dt)
-        updateMortars(dt: dt)
-        updateVersus(dt: dt)
-        updateTargetMarker()
+        if !updateCountdown(dt: dt) {
+            if isGuest {
+                updateGuest(dt: dt)
+            } else {
+                if versusRole?.isHost == true { applyRemoteInput() }
+                updatePlayers(dt: dt)
+                updateEnemies(dt: dt)
+                updateInfantry(dt: dt)
+                updateProjectiles(dt: dt)
+                updateMortars(dt: dt)
+                updateVersus(dt: dt)
+                if versusRole?.isHost == true { sendSnapshotIfDue(dt: dt) }
+            }
+            updateTargetMarker()
+            watchConnection()
+        }
         updateCamera(dt: dt)
         updateHUD()
         checkLevelEnd(dt: dt)
+    }
+
+    /// Returns true while the opening 3-2-1 is still running.
+    private func updateCountdown(dt: Double) -> Bool {
+        guard let remaining = countdown else { return false }
+        let next = remaining - dt
+        if next <= 0 {
+            countdown = nil
+            hud.flash("GO!", color: .systemGreen, duration: 0.8)
+            return false
+        }
+        let shownNow = Int(next.rounded(.up))
+        if remaining == Self.countdownLength || shownNow != Int(remaining.rounded(.up)) {
+            hud.flash("\(shownNow)", duration: 0.9)
+        }
+        countdown = next
+        return true
     }
 
     func shake(_ magnitude: CGFloat, duration: Double) {

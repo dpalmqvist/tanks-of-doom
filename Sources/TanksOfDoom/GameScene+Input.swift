@@ -1,5 +1,6 @@
 import AppKit
 import SpriteKit
+import TanksNet
 
 extension GameScene {
     override func keyDown(with event: NSEvent) {
@@ -12,10 +13,19 @@ extension GameScene {
         switch code {
         case 46: hud.toggleMinimap()                   // M
         case 53: togglePause()                         // Esc
-        case 15: abandonTank(localPlayer)              // R
-        case 48: cycleTarget(for: localPlayer)         // Tab
-        case 12, 14: localPlayer.turretAim.manualInput()   // Q, E
+        case 15: press(InputFrame.abandon) { abandonTank(localPlayer) }            // R
+        case 48: press(InputFrame.cycleTarget) { cycleTarget(for: localPlayer) }   // Tab
+        case 12, 14: press(InputFrame.manualTurret) { localPlayer.turretAim.manualInput() }   // Q, E
         default: break
+        }
+    }
+
+    /// One-shot keys: a guest sends them to the host; everyone else acts on them here.
+    private func press(_ bit: UInt8, otherwise act: () -> Void) {
+        if let world = guestWorld {
+            world.presses |= bit
+        } else {
+            act()
         }
     }
 

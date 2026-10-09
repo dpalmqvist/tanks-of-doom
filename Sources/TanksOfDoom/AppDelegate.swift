@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate()
             let settings = MatchSettings(lives: 3, aiIntensity: .normal, seed: .random(in: 0...UInt64.max))
             view.presentScene(GameScene(size: frame.size, versus: settings, role: .hotSeat))
+        } else if QuickMatch.start(in: view) {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
         } else {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
