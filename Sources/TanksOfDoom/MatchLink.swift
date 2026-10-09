@@ -26,6 +26,11 @@ final class MatchLink {
     /// Seconds since the other side last said anything.
     var silence: Double { ProcessInfo.processInfo.systemUptime - lastHeard }
 
+    /// Starts the silence clock afresh, e.g. when a match scene takes the link over.
+    func resetSilence() {
+        lastHeard = ProcessInfo.processInfo.systemUptime
+    }
+
     func send(_ message: GameMessage) {
         connection.send(message)
     }

@@ -48,7 +48,8 @@ extension GameScene {
         guard let world = guestWorld, let link = versusRole?.link else { return }
         world.inputTimer -= dt
         guard world.inputTimer <= 0 else { return }
-        world.inputTimer = Self.inputInterval
+        // Keep the cadence (dt rarely divides the interval), but don't burst to catch up after a stall.
+        world.inputTimer = max(world.inputTimer + Self.inputInterval, 0)
         world.inputSeq += 1
         link.send(.input(InputFrame(seq: world.inputSeq, held: localPlayer.input.bits, presses: world.takePresses())))
     }

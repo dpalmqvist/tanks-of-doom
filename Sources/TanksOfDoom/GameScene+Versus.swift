@@ -102,6 +102,8 @@ extension GameScene {
     func matchEnded(winner: PlayerSlot) {
         guard endTimer == nil else { return }
         matchWinner = winner
+        leavePromptShown = false
+        hud.setLeavePrompt(false)
         let won = winner == localPlayer.slot
         endTimer = 3
         hud.flash(won ? "VICTORY!" : "DEFEAT", color: won ? .systemGreen : .systemRed, duration: 3)

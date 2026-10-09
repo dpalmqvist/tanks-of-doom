@@ -14,13 +14,14 @@ extension GameScene {
         case 46: hud.toggleMinimap()                   // M
         case 53:                                       // Esc
             if versusRole?.link != nil {
+                guard !matchDecided else { return }
                 leavePromptShown.toggle()
                 hud.setLeavePrompt(leavePromptShown)
             } else {
                 togglePause()
             }
-        case 16 where leavePromptShown: leaveMatch()   // Y
-        case 45 where leavePromptShown:                // N
+        case 16 where leavePromptShown && !matchDecided: leaveMatch()   // Y
+        case 45 where leavePromptShown && !matchDecided:   // N
             leavePromptShown = false
             hud.setLeavePrompt(false)
         case 15: press(InputFrame.abandon) { abandonTank(localPlayer) }            // R
@@ -29,6 +30,9 @@ extension GameScene {
         default: break
         }
     }
+
+    /// The match is over (or the scene is leaving): the leave prompt no longer applies.
+    private var matchDecided: Bool { endTimer != nil || levelOver }
 
     /// One-shot keys: a guest sends them to the host; everyone else acts on them here.
     private func press(_ bit: UInt8, otherwise act: () -> Void) {

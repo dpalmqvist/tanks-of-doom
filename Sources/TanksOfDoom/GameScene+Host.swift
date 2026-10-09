@@ -6,6 +6,7 @@ extension GameScene {
     static let snapshotInterval = 0.05
 
     func attach(_ link: MatchLink) {
+        link.resetSilence()   // time spent in the lobby or on the result screen doesn't count
         link.onMessage = { [weak self] message in self?.receive(message) }
         link.onClosed = { [weak self] reason in self?.linkClosed(reason) }
         link.onFailed = { [weak self] reason in self?.connectionFailed(reason) }
@@ -30,16 +31,21 @@ extension GameScene {
         matchEnded(winner: localPlayer.slot)
     }
 
-    /// This Mac lost the relay: nobody wins; show the error and go back to the menu.
+    /// This Mac lost the relay: nobody wins; show the error and go back to the multiplayer menu.
+    /// If the match was already decided, the result screen still shows (with the opponent gone).
     func connectionFailed(_ reason: String?) {
         guard isVersus, !levelOver else { return }
+        if endTimer != nil {
+            opponentLeft = true
+            return
+        }
         levelOver = true
         versusRole?.link?.close()
         guard let view else { return }
         let lines = [MenuScene.Line(text: "CONNECTION LOST", size: 72, color: .systemRed),
                      MenuScene.Line(text: reason ?? "Can't reach server", size: 24)]
         let error = MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO CONTINUE") { scene in
-            scene.view?.presentScene(MenuScene.title(size: scene.size), transition: .fade(withDuration: 0.6))
+            scene.view?.presentScene(MenuScene.multiplayer(size: scene.size), transition: .fade(withDuration: 0.6))
         }
         view.presentScene(error, transition: .fade(withDuration: 0.8))
     }
@@ -48,6 +54,7 @@ extension GameScene {
     func watchConnection() {
         guard let link = versusRole?.link, endTimer == nil, link.silence > MatchLink.giveUpAfter else { return }
         linkClosed("Connection lost")
+        link.close()   // so the opponent, if they come back, hears that we left
     }
 
     /// Host: the guest's latest keys drive their Player; one-shot presses act once.
@@ -63,7 +70,8 @@ extension GameScene {
     func sendSnapshotIfDue(dt: Double) {
         snapshotTimer -= dt
         guard snapshotTimer <= 0, let link = versusRole?.link else { return }
-        snapshotTimer = Self.snapshotInterval
+        // Keep the cadence (dt rarely divides the interval), but don't burst to catch up after a stall.
+        snapshotTimer = max(snapshotTimer + Self.snapshotInterval, 0)
         hostTick += 1
         link.send(.snapshot(makeSnapshot()))
         outgoingEvents.removeAll()
