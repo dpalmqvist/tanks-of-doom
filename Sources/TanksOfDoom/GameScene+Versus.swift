@@ -42,6 +42,13 @@ extension GameScene {
         if let winner = match?.winner { matchEnded(winner: winner) }
     }
 
+    /// What the versus overlay should show right now; nil in the campaign.
+    func versusHUDState() -> VersusHUDState? {
+        guard let match else { return nil }
+        return VersusHUDState(localSlot: localPlayer.slot, lives: match.lives,
+                              respawnIn: match.respawnRemaining(localPlayer.slot), latencyMs: nil, notice: nil)
+    }
+
     /// A player tank just blew up: score it, leave a wreck and take the tank off the field until it respawns.
     func playerDestroyed(_ tank: PlayerTank, by killer: Combatant?) {
         guard match != nil, let victim = players.first(where: { $0.tank === tank }) else { return }
