@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 extension GameScene {
     enum Impact {
@@ -17,13 +18,13 @@ extension GameScene {
         projectiles.append(projectile)
         switch weapon {
         case .mainGun, .enemyShell:
-            effects.muzzleFlash(at: origin, angle: angle, big: true)
-            playSound(.cannon, at: origin)
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: true))
+            fx(.sound(.cannon, at: origin.vec, volume: 1))
         case .bazooka:
-            playSound(.rocket, at: origin)
+            fx(.sound(.rocket, at: origin.vec, volume: 1))
         default:
-            effects.muzzleFlash(at: origin, angle: angle, big: false)
-            playSound(.machineGun, at: origin, volume: 0.5)
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: false))
+            fx(.sound(.machineGun, at: origin.vec, volume: 0.5))
         }
     }
 
@@ -33,13 +34,12 @@ extension GameScene {
         worldNode.addChild(shell.marker)
         worldNode.addChild(shell)
         mortars.append(shell)
-        playSound(.cannon, at: origin, volume: 0.4)
+        fx(.sound(.cannon, at: origin.vec, volume: 0.4))
     }
 
     func updateWeapons(for player: Player, dt: Double) {
         let tank = player.tank
         guard !tank.isDestroyed, !tank.isHidden else { return }
-        let isLocal = player === localPlayer
         tank.mainCooldown -= dt
         tank.machineGunCooldown -= dt
 
@@ -48,13 +48,11 @@ extension GameScene {
                 fire(.mainGun, from: tank.muzzlePosition, angle: tank.turretAngle, shooter: .player(player.slot))
                 match?.playerFired(player.slot)
                 tank.mainCooldown = Combat.spec(.mainGun).reload
-                if isLocal { shake(4, duration: 0.15) }
+                fx(.shake(magnitude: 4, duration: 0.15), for: .only(player))
             } else {
                 tank.mainCooldown = 0.5
-                if isLocal {
-                    Audio.shared.play(.empty)
-                    effects.floatingText("NO SHELLS", at: tank.position + CGPoint(x: 0, y: 40), color: .systemYellow)
-                }
+                fx(.uiSound(.empty, volume: 1), for: .only(player))
+                fx(.text("NO SHELLS", at: (tank.position + CGPoint(x: 0, y: 40)).vec, color: .yellow), for: .only(player))
             }
         }
 
@@ -67,10 +65,8 @@ extension GameScene {
                 tank.machineGunCooldown = Combat.spec(.machineGun).reload
             } else {
                 tank.machineGunCooldown = 0.5
-                if isLocal {
-                    Audio.shared.play(.empty)
-                    effects.floatingText("NO MG AMMO", at: tank.position + CGPoint(x: 0, y: 40), color: .systemYellow)
-                }
+                fx(.uiSound(.empty, volume: 1), for: .only(player))
+                fx(.text("NO MG AMMO", at: (tank.position + CGPoint(x: 0, y: 40)).vec, color: .yellow), for: .only(player))
             }
         }
     }
@@ -150,7 +146,7 @@ extension GameScene {
         if Combat.spec(projectile.weapon).splashRadius > 0 {
             detonate(projectile, at: point, direct: direct)
         } else {
-            effects.spark(at: point)
+            fx(.spark(at: point.vec))
             removeProjectile(projectile)
         }
     }
@@ -158,8 +154,8 @@ extension GameScene {
     private func detonate(_ projectile: Projectile, at point: CGPoint, direct: AnyObject?) {
         applySplash(projectile.weapon, at: point, from: projectile.shooter, excluding: direct)
         let heavy = projectile.weapon == .mainGun || projectile.weapon == .enemyShell
-        effects.explosion(at: point, scale: heavy ? 1.0 : 0.7)
-        playSound(.explosion, at: point, volume: 0.7)
+        fx(.explosion(at: point.vec, scale: heavy ? 1.0 : 0.7))
+        fx(.sound(.explosion, at: point.vec, volume: 0.7))
         removeProjectile(projectile)
     }
 
@@ -180,8 +176,8 @@ extension GameScene {
         for shell in mortars {
             guard shell.advance(dt: dt) else { continue }
             applySplash(.mortar, at: shell.target, from: .infantry(.mortar), excluding: nil)
-            effects.explosion(at: shell.target, scale: 0.9)
-            playSound(.explosion, at: shell.target, volume: 0.8)
+            fx(.explosion(at: shell.target.vec, scale: 0.9))
+            fx(.sound(.explosion, at: shell.target.vec, volume: 0.8))
             shell.marker.removeFromParent()
             shell.removeFromParent()
             mortars.removeAll { $0 === shell }
@@ -190,19 +186,17 @@ extension GameScene {
 
     /// `shooter` is nil when the player abandons their own tank.
     func damagePlayer(_ tank: PlayerTank, _ amount: Int, from shooter: Combatant?) {
-        guard amount > 0, !tank.isDestroyed, !tank.isInvulnerable else { return }
+        guard amount > 0, !tank.isDestroyed, !tank.isInvulnerable,
+              let victim = players.first(where: { $0.tank === tank }) else { return }
         tank.stats.takeDamage(amount)
-        effects.floatingText("-\(amount)", at: tank.position + CGPoint(x: 0, y: 36), color: .systemRed)
-        let isLocal = tank === localPlayer.tank
-        if isLocal {
-            Audio.shared.play(.hit, volume: 0.8)
-            shake(min(14, 3 + CGFloat(amount) * 0.5), duration: 0.25)
-        }
+        fx(.text("-\(amount)", at: (tank.position + CGPoint(x: 0, y: 36)).vec, color: .red))
+        fx(.uiSound(.hit, volume: 0.8), for: .only(victim))
+        fx(.shake(magnitude: Float(min(14, 3 + CGFloat(amount) * 0.5)), duration: 0.25), for: .only(victim))
         guard tank.isDestroyed else { return }
-        effects.explosion(at: tank.position, scale: 2.2)
-        playSound(.bigExplosion, at: tank.position)
+        fx(.explosion(at: tank.position.vec, scale: 2.2))
+        fx(.sound(.bigExplosion, at: tank.position.vec, volume: 1))
         tank.showWreck()
-        if isLocal { shake(20, duration: 0.6) }
+        fx(.shake(magnitude: 20, duration: 0.6), for: .only(victim))
         playerDestroyed(tank, by: shooter)
     }
 
@@ -210,16 +204,17 @@ extension GameScene {
         let result = level.damageBuilding(id, by: amount)
         guard result != .none else { return }
         renderer.update(level.buildings[id])
+        fx(.buildingHP(id: UInt16(id), hp: Int16(clamping: level.buildings[id].hp)), for: .allBut(localPlayer))
         if result == .destroyed { buildingDestroyed(id) }
     }
 
     func buildingDestroyed(_ id: Int) {
         killOccupants(of: id)
         let center = level.buildings[id].worldCenter
-        effects.explosion(at: center, scale: 2.0)
-        effects.dustPuff(at: center)
-        playSound(.bigExplosion, at: center)
-        shake(10, duration: 0.4)
+        fx(.explosion(at: center.vec, scale: 2.0))
+        fx(.dust(at: center.vec))
+        fx(.sound(.bigExplosion, at: center.vec, volume: 1))
+        fx(.shake(magnitude: 10, duration: 0.4))
         hud.minimap.refresh(map: level.map)
     }
 }

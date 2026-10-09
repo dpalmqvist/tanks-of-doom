@@ -1,12 +1,12 @@
 import AVFoundation
 import TanksCore
+import TanksNet
 
 /// Tiny synthesizer: every sound effect is generated in code at startup.
 /// If no audio output is available the game simply runs silently.
 final class Audio {
-    enum Sound: CaseIterable {
-        case cannon, machineGun, explosion, bigExplosion, hit, rocket, pickup, empty
-    }
+    /// Shared with the network protocol so the host can name sounds for the guest.
+    typealias Sound = SoundID
 
     static let shared = Audio()
 

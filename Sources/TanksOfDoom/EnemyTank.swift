@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 final class EnemyTank: TankNode, Hostile {
     static let turnRate: CGFloat = 1.8
@@ -58,7 +59,7 @@ final class EnemyTank: TankNode, Hostile {
         healthBack.isHidden = false
         healthBar.isHidden = false
         healthBar.xScale = CGFloat(max(0, armor / maxArmor))
-        scene.effects.floatingText("-\(amount)", at: position + CGPoint(x: 0, y: 40), color: .systemYellow)
+        scene.fx(.text("-\(amount)", at: (position + CGPoint(x: 0, y: 40)).vec, color: .yellow))
         if armor <= 0 { scene.enemyDestroyed(self) }
     }
 

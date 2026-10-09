@@ -1,5 +1,6 @@
 import SpriteKit
 import TanksCore
+import TanksNet
 
 extension GameScene {
     /// Every tank that blocks movement: players still in play and the AI.
@@ -44,9 +45,9 @@ extension GameScene {
     func enemyDestroyed(_ tank: EnemyTank) {
         runStats.tanksDestroyed += 1
         if isVersus { aiTankQueue.schedule(tank.spawn, after: VersusTimings.aiTankRespawn) }
-        effects.explosion(at: tank.position, scale: 1.8)
-        playSound(.bigExplosion, at: tank.position)
-        shake(8, duration: 0.3)
+        fx(.explosion(at: tank.position.vec, scale: 1.8))
+        fx(.sound(.bigExplosion, at: tank.position.vec, volume: 1))
+        fx(.shake(magnitude: 8, duration: 0.3))
         addWreck(Textures.enemyHull, at: tank.position, heading: tank.heading)
         tank.removeFromParent()
         enemies.removeAll { $0 === tank }

@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 /// What the result screen shows.
 struct VersusResult {
@@ -39,7 +40,10 @@ extension GameScene {
             addSoldier(spawn, initialDelay: 0)
         }
         for index in pickupQueue.tick(dt: dt) { pickups[index].isAvailable = true }
-        if let winner = match?.winner { matchEnded(winner: winner) }
+        if let winner = match?.winner, endTimer == nil {
+            fx(.matchOver(winner: winner), for: .allBut(localPlayer))
+            matchEnded(winner: winner)
+        }
     }
 
     /// What the versus overlay should show right now; nil in the campaign.
@@ -53,7 +57,7 @@ extension GameScene {
     func playerDestroyed(_ tank: PlayerTank, by killer: Combatant?) {
         guard match != nil, let victim = players.first(where: { $0.tank === tank }) else { return }
         match?.playerDied(victim.slot, killer: killer)
-        hud.addKillFeed(KillFeed.line(killer: killer, victim: victim.slot, viewer: localPlayer.slot))
+        fx(.kill(killer: killer, victim: victim.slot))
         addWreck(Textures.hull(for: victim.slot), at: tank.position, heading: tank.heading)
         tank.isHidden = true
     }
@@ -67,7 +71,7 @@ extension GameScene {
         player.tank.respawn(at: level.map.center(spot), heading: .random(in: -.pi ... .pi))
         player.turretAim = TurretAim()
         player.lockedTargetID = nil
-        effects.dustPuff(at: player.tank.position)
+        fx(.dust(at: player.tank.position.vec))
         if player === localPlayer { cameraBase = player.tank.position }
     }
 

@@ -1,5 +1,6 @@
 import SpriteKit
 import TanksCore
+import TanksNet
 
 extension GameScene {
     func spawnInfantry() {
@@ -78,7 +79,7 @@ extension GameScene {
             infantryQueue.schedule(InfantrySpawn(kind: soldier.kind, buildingID: soldier.buildingID),
                                    after: VersusTimings.infantryRespawn)
         }
-        if soldier.alpha > 0 { effects.dustPuff(at: soldier.position) }
+        if soldier.alpha > 0 { fx(.dust(at: soldier.position.vec)) }
         soldier.removeFromParent()
         infantry.removeAll { $0 === soldier }
     }

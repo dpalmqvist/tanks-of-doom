@@ -1,5 +1,6 @@
 import SpriteKit
 import TanksCore
+import TanksNet
 
 extension GameScene {
     func updatePlayers(dt: Double) {
@@ -17,7 +18,7 @@ extension GameScene {
         let hadFuel = tank.stats.fuel > 0
         tank.stats.burnFuel(seconds: dt, moving: drove.moving)
         if hadFuel && tank.stats.fuel <= 0 {
-            effects.floatingText("OUT OF FUEL!", at: tank.position + CGPoint(x: 0, y: 44), color: .systemOrange)
+            fx(.text("OUT OF FUEL!", at: (tank.position + CGPoint(x: 0, y: 44)).vec, color: .orange))
         }
 
         updateTurret(for: player, dt: dt)
@@ -65,8 +66,8 @@ extension GameScene {
         let tank = player.tank
         for (index, pickup) in pickups.enumerated() where pickup.isAvailable && pickup.position.distance(to: tank.position) < 40 {
             tank.stats.collect(pickup.kind)
-            effects.floatingText(pickup.kind == .gas ? "+GAS" : "+AMMO", at: pickup.position, color: .systemGreen)
-            if player === localPlayer { Audio.shared.play(.pickup) }
+            fx(.text(pickup.kind == .gas ? "+GAS" : "+AMMO", at: pickup.position.vec, color: .green))
+            fx(.uiSound(.pickup, volume: 1), for: .only(player))
             pickup.isAvailable = false
             if isVersus { pickupQueue.schedule(index, after: VersusTimings.pickupRespawn) }
         }

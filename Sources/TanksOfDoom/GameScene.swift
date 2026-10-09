@@ -1,6 +1,7 @@
 import AppKit
 import SpriteKit
 import TanksCore
+import TanksNet
 
 final class GameScene: SKScene {
     let levelNumber: Int
@@ -22,6 +23,8 @@ final class GameScene: SKScene {
     var aiTankQueue = RespawnQueue<EnemyTankSpawn>()
     var infantryQueue = RespawnQueue<InfantrySpawn>()
     var pickupQueue = RespawnQueue<Int>()
+    /// Effects waiting to ride along with the next snapshot to the guest.
+    var outgoingEvents: [GameEvent] = []
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
