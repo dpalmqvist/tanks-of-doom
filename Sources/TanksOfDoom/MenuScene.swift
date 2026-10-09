@@ -133,3 +133,20 @@ extension MenuScene {
         }
     }
 }
+
+extension MenuScene {
+    static func versusResult(size: CGSize, result: VersusResult) -> MenuScene {
+        let mono = "Menlo-Bold"
+        let me = result.localSlot
+        let them = me.opponent
+        let won = result.winner == me
+        let lines = [
+            Line(text: won ? "VICTORY" : "DEFEAT", size: 88, color: won ? .systemGreen : .systemRed),
+            Line(text: "You: \(result.lives[me] ?? 0) lives left, \(result.kills[me] ?? 0) kills", size: 22, color: me.color, font: mono),
+            Line(text: "Opponent: \(result.lives[them] ?? 0) lives left, \(result.kills[them] ?? 0) kills", size: 22, color: them.color, font: mono),
+        ]
+        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO CONTINUE") { scene in
+            scene.view?.presentScene(MenuScene.title(size: scene.size), transition: .fade(withDuration: 0.6))
+        }
+    }
+}

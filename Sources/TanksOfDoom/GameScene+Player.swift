@@ -63,12 +63,12 @@ extension GameScene {
 
     func collectPickups(for player: Player) {
         let tank = player.tank
-        for pickup in pickups where pickup.position.distance(to: tank.position) < 40 {
+        for (index, pickup) in pickups.enumerated() where pickup.isAvailable && pickup.position.distance(to: tank.position) < 40 {
             tank.stats.collect(pickup.kind)
             effects.floatingText(pickup.kind == .gas ? "+GAS" : "+AMMO", at: pickup.position, color: .systemGreen)
             if player === localPlayer { Audio.shared.play(.pickup) }
-            pickup.removeFromParent()
-            pickups.removeAll { $0 === pickup }
+            pickup.isAvailable = false
+            if isVersus { pickupQueue.schedule(index, after: VersusTimings.pickupRespawn) }
         }
     }
 }

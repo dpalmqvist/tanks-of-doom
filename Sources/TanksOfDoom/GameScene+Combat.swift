@@ -46,6 +46,7 @@ extension GameScene {
         if player.input.firePrimary && tank.mainCooldown <= 0 {
             if tank.stats.consumeShell() {
                 fire(.mainGun, from: tank.muzzlePosition, angle: tank.turretAngle, shooter: .player(player.slot))
+                match?.playerFired(player.slot)
                 tank.mainCooldown = Combat.spec(.mainGun).reload
                 if isLocal { shake(4, duration: 0.15) }
             } else {
@@ -62,6 +63,7 @@ extension GameScene {
                 let side = CGPoint(angle: tank.turretAngle - .pi / 2, length: 7)
                 let origin = tank.position + CGPoint(angle: tank.turretAngle, length: 30) + side
                 fire(.machineGun, from: origin, angle: tank.turretAngle + .random(in: -0.04...0.04), shooter: .player(player.slot))
+                match?.playerFired(player.slot)
                 tank.machineGunCooldown = Combat.spec(.machineGun).reload
             } else {
                 tank.machineGunCooldown = 0.5
@@ -201,6 +203,7 @@ extension GameScene {
         playSound(.bigExplosion, at: tank.position)
         tank.showWreck()
         if isLocal { shake(20, duration: 0.6) }
+        playerDestroyed(tank, by: shooter)
     }
 
     func damageBuilding(_ id: Int, amount: Int) {

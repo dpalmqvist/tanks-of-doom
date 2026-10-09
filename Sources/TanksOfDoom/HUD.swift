@@ -121,6 +121,11 @@ final class HUD: SKNode {
         messageLabel.run(.sequence([.wait(forDuration: duration), .fadeOut(withDuration: 0.5)]))
     }
 
+    /// Placeholder until the versus HUD (Task 6) draws a real kill feed.
+    func addKillFeed(_ line: String) {
+        flash(line, duration: 2)
+    }
+
     func setPaused(_ paused: Bool) {
         pausedLabel.isHidden = !paused
     }

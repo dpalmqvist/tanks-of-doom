@@ -3,6 +3,7 @@ import SpriteKit
 
 extension GameScene {
     override func keyDown(with event: NSEvent) {
+        if setHotSeatKey(event.keyCode, down: true, isRepeat: event.isARepeat) { return }
         setKey(event.keyCode, down: true)
         if !event.isARepeat { handleKeyPress(event.keyCode) }
     }
@@ -19,6 +20,7 @@ extension GameScene {
     }
 
     override func keyUp(with event: NSEvent) {
+        if setHotSeatKey(event.keyCode, down: false, isRepeat: false) { return }
         setKey(event.keyCode, down: false)
     }
 
@@ -34,5 +36,29 @@ extension GameScene {
         case 14: localPlayer.input.turretRight = down     // E
         default: break
         }
+    }
+
+    /// Debug hot-seat: the second player drives with I/J/K/L, turns the turret with U/O,
+    /// fires with N (main gun) and B (MG), and H picks the next target.
+    private func setHotSeatKey(_ code: UInt16, down: Bool, isRepeat: Bool) -> Bool {
+        guard case .versus(.hotSeat) = mode else { return false }
+        let second = player(.guest)
+        switch code {
+        case 34: second.input.forward = down        // I
+        case 40: second.input.backward = down       // K
+        case 38: second.input.left = down           // J
+        case 37: second.input.right = down          // L
+        case 32:                                    // U
+            second.input.turretLeft = down
+            if down { second.turretAim.manualInput() }
+        case 31:                                    // O
+            second.input.turretRight = down
+            if down { second.turretAim.manualInput() }
+        case 45: second.input.space = down          // N
+        case 11: second.input.fKey = down           // B
+        case 4: if down && !isRepeat { cycleTarget(for: second) }   // H
+        default: return false
+        }
+        return true
     }
 }

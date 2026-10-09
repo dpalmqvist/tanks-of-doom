@@ -43,6 +43,7 @@ extension GameScene {
 
     func enemyDestroyed(_ tank: EnemyTank) {
         runStats.tanksDestroyed += 1
+        if isVersus { aiTankQueue.schedule(tank.spawn, after: VersusTimings.aiTankRespawn) }
         effects.explosion(at: tank.position, scale: 1.8)
         playSound(.bigExplosion, at: tank.position)
         shake(8, duration: 0.3)

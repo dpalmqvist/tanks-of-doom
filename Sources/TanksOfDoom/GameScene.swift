@@ -16,6 +16,12 @@ final class GameScene: SKScene {
     let players: [Player]
     /// The player at this keyboard: the camera, HUD and sound follow them.
     let localPlayer: Player
+    let mode: GameMode
+    /// Lives, respawns and the winner. Nil in the campaign, and on a networked guest (the host keeps score).
+    var match: MatchState?
+    var aiTankQueue = RespawnQueue<EnemyTankSpawn>()
+    var infantryQueue = RespawnQueue<InfantrySpawn>()
+    var pickupQueue = RespawnQueue<Int>()
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
@@ -37,13 +43,28 @@ final class GameScene: SKScene {
     private var isSetUp = false
     private var resignObserver: NSObjectProtocol?
 
-    init(size: CGSize, levelNumber: Int, runStats: RunStats) {
+    convenience init(size: CGSize, levelNumber: Int, runStats: RunStats) {
+        let level = CityGenerator.generate(seed: .random(in: 0...UInt64.max), level: levelNumber)
+        self.init(size: size, mode: .campaign, level: level, levelNumber: levelNumber, runStats: runStats,
+                  players: [Player(slot: .host)], localSlot: .host)
+    }
+
+    convenience init(size: CGSize, versus settings: MatchSettings, role: VersusRole) {
+        let difficulty = settings.aiIntensity.difficultyLevel
+        let level = CityGenerator.generate(seed: settings.seed, level: difficulty, bases: 2)
+        self.init(size: size, mode: .versus(role), level: level, levelNumber: difficulty, runStats: RunStats(),
+                  players: PlayerSlot.allCases.map(Player.init(slot:)), localSlot: role.localSlot)
+        if !role.isGuest { match = MatchState(settings: settings) }
+    }
+
+    private init(size: CGSize, mode: GameMode, level: Level, levelNumber: Int, runStats: RunStats,
+                 players: [Player], localSlot: PlayerSlot) {
+        self.mode = mode
+        self.level = level
         self.levelNumber = levelNumber
         self.runStats = runStats
-        self.level = CityGenerator.generate(seed: .random(in: 0...UInt64.max), level: levelNumber)
-        let player = Player(slot: .host)
-        players = [player]
-        localPlayer = player
+        self.players = players
+        localPlayer = players.first { $0.slot == localSlot }!
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -72,10 +93,9 @@ final class GameScene: SKScene {
         worldNode.addChild(renderer.root)
         effects = Effects(layer: worldNode)
 
-        let baseLabel = SKLabelNode.make("BASE", size: 40, color: NSColor(white: 1, alpha: 0.35))
-        baseLabel.position = level.map.center(level.baseCenter) - CGPoint(x: tileSize / 2, y: tileSize / 2)
-        baseLabel.zPosition = Z.tracks
-        worldNode.addChild(baseLabel)
+        for (index, base) in level.bases.enumerated() {
+            addBaseMarker(base, owner: isVersus ? PlayerSlot(rawValue: index) : nil)
+        }
 
         for cache in level.caches {
             let pickup = PickupNode(cache: cache)
@@ -97,6 +117,24 @@ final class GameScene: SKScene {
         cameraNode.position = cameraBase
         worldNode.addChild(targetMarker)
         setUpHUD()
+    }
+
+    /// "BASE" painted on the ground; in versus, tinted in the owner's colour.
+    private func addBaseMarker(_ base: BaseSite, owner: PlayerSlot?) {
+        let label = SKLabelNode.make("BASE", size: 40, color: owner.map { $0.color.withAlphaComponent(0.7) } ?? NSColor(white: 1, alpha: 0.35))
+        label.position = level.map.center(base.center) - CGPoint(x: tileSize / 2, y: tileSize / 2)
+        label.zPosition = Z.tracks
+        worldNode.addChild(label)
+        guard let owner else { return }
+        let xs = base.tiles.map(\.x)
+        let ys = base.tiles.map(\.y)
+        let tint = SKSpriteNode(color: owner.color.withAlphaComponent(0.18),
+                                size: CGSize(width: CGFloat(xs.max()! - xs.min()! + 1) * tileSize,
+                                             height: CGFloat(ys.max()! - ys.min()! + 1) * tileSize))
+        tint.anchorPoint = .zero
+        tint.position = CGPoint(x: CGFloat(xs.min()!) * tileSize, y: CGFloat(ys.min()!) * tileSize)
+        tint.zPosition = Z.ground + 0.5
+        worldNode.addChild(tint)
     }
 
     /// Starts a player at their own base, facing the middle of the city.
@@ -123,6 +161,7 @@ final class GameScene: SKScene {
         updateInfantry(dt: dt)
         updateProjectiles(dt: dt)
         updateMortars(dt: dt)
+        updateVersus(dt: dt)
         updateTargetMarker()
         updateCamera(dt: dt)
         updateHUD()

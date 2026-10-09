@@ -25,6 +25,7 @@ extension GameScene {
             if remaining - dt <= 0 { finishLevel() }
             return
         }
+        guard !isVersus else { return }   // versus ends through the match rules
         if localPlayer.tank.isDestroyed {
             victory = false
             endTimer = 2.5
@@ -39,6 +40,10 @@ extension GameScene {
     private func finishLevel() {
         levelOver = true
         guard let view else { return }
+        if isVersus {
+            view.presentScene(MenuScene.versusResult(size: size, result: versusResult()), transition: .fade(withDuration: 0.8))
+            return
+        }
         if victory {
             runStats.levelsCleared += 1
             view.presentScene(MenuScene.levelComplete(size: size, runStats: runStats, level: levelNumber),

@@ -74,6 +74,10 @@ extension GameScene {
 
     func infantryKilled(_ soldier: InfantryNode) {
         runStats.infantryKilled += 1
+        if isVersus {
+            infantryQueue.schedule(InfantrySpawn(kind: soldier.kind, buildingID: soldier.buildingID),
+                                   after: VersusTimings.infantryRespawn)
+        }
         if soldier.alpha > 0 { effects.dustPuff(at: soldier.position) }
         soldier.removeFromParent()
         infantry.removeAll { $0 === soldier }
