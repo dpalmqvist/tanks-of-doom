@@ -48,6 +48,8 @@ public struct SnapshotBuffer: Sendable {
     public private(set) var snapshots: [Snapshot] = []
     /// Host clock minus local clock, smoothed.
     private var clockOffset: Double?
+    /// The last render time handed out, so smoothing the offset never moves the picture backwards.
+    private var lastRenderTime: Double?
 
     public init() {}
 
@@ -62,6 +64,7 @@ public struct SnapshotBuffer: Sendable {
             clockOffset = offset + (sample - offset) * 0.1
         } else {
             clockOffset = sample   // first snapshot, or the clocks jumped (long stall): resync
+            lastRenderTime = nil   // after a resync the render clock may jump, either way
         }
         snapshots.append(snapshot)
         if snapshots.count > Self.capacity { snapshots.removeFirst(snapshots.count - Self.capacity) }
@@ -69,9 +72,11 @@ public struct SnapshotBuffer: Sendable {
     }
 
     /// The snapshots either side of the render time. Holds at the oldest/newest rather than guessing beyond them.
-    public func frame(at localTime: Double) -> Frame? {
+    /// The render time never steps backwards, except straight after a resync.
+    public mutating func frame(at localTime: Double) -> Frame? {
         guard let offset = clockOffset, let first = snapshots.first, let last = snapshots.last else { return nil }
-        let renderTime = localTime + offset - Self.delay
+        let renderTime = max(localTime + offset - Self.delay, lastRenderTime ?? -.infinity)
+        lastRenderTime = renderTime
         if renderTime <= first.time { return Frame(from: first, to: first, t: 0) }
         if renderTime >= last.time { return Frame(from: last, to: last, t: 0) }
         let index = snapshots.lastIndex { $0.time <= renderTime }!
