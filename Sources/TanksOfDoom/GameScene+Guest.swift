@@ -94,6 +94,9 @@ extension GameScene {
         let step = world.correction * CGFloat(min(1, dt / GuestWorld.correctionTime))
         tank.position = tank.position + step
         world.correction = world.correction - step
+        let turn = world.headingCorrection * CGFloat(min(1, dt / GuestWorld.correctionTime))
+        tank.heading += turn
+        world.headingCorrection -= turn
     }
 
     /// Re-runs unconfirmed inputs from the host's position. Small errors are eased in, big ones snap.
@@ -103,6 +106,7 @@ extension GameScene {
         world.history.acknowledge(through: seq)
         guard !tank.isHidden, !mine.has(PlayerSnapshot.respawning) else {
             world.correction = .zero
+            world.headingCorrection = 0
             return
         }
         let shown = tank.position
@@ -113,12 +117,19 @@ extension GameScene {
             _ = drive(tank, with: entry.input, dt: entry.dt, blockers: allTanks)
         }
         let error = tank.position - shown
+        let headingError = normalizeAngle(tank.heading - shownHeading)
         if error.length > GuestWorld.snapDistance {
             world.correction = .zero   // too far off: stay where the host says
+            world.headingCorrection = 0
             return
         }
         tank.position = shown
-        if abs(normalizeAngle(tank.heading - shownHeading)) < 0.02 { tank.heading = shownHeading }
+        if abs(headingError) > GuestWorld.headingSnap {
+            world.headingCorrection = 0   // keep the replayed heading
+        } else {
+            tank.heading = shownHeading
+            world.headingCorrection = abs(headingError) < GuestWorld.headingIgnore ? 0 : headingError
+        }
         world.correction = error.length < GuestWorld.ignoreDistance ? .zero : error
     }
 
