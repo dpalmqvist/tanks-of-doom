@@ -16,15 +16,19 @@ extension GameScene {
         projectile.position = origin
         worldNode.addChild(projectile)
         projectiles.append(projectile)
+        // A guest plays their own muzzle flashes and gun sounds the moment they fire.
+        let audience: Audience = remotePlayer.map { remote -> Audience in
+            shooter == .player(remote.slot) ? .allBut(remote) : .everyone
+        } ?? .everyone
         switch weapon {
         case .mainGun, .enemyShell:
-            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: true))
-            fx(.sound(.cannon, at: origin.vec, volume: 1))
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: true), for: audience)
+            fx(.sound(.cannon, at: origin.vec, volume: 1), for: audience)
         case .bazooka:
-            fx(.sound(.rocket, at: origin.vec, volume: 1))
+            fx(.sound(.rocket, at: origin.vec, volume: 1), for: audience)
         default:
-            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: false))
-            fx(.sound(.machineGun, at: origin.vec, volume: 0.5))
+            fx(.muzzleFlash(at: origin.vec, angle: Float(angle), big: false), for: audience)
+            fx(.sound(.machineGun, at: origin.vec, volume: 0.5), for: audience)
         }
     }
 
@@ -48,7 +52,7 @@ extension GameScene {
                 fire(.mainGun, from: tank.muzzlePosition, angle: tank.turretAngle, shooter: .player(player.slot))
                 match?.playerFired(player.slot)
                 tank.mainCooldown = Combat.spec(.mainGun).reload
-                fx(.shake(magnitude: 4, duration: 0.15), for: .only(player))
+                if player !== remotePlayer { fx(.shake(magnitude: 4, duration: 0.15), for: .only(player)) }
             } else {
                 tank.mainCooldown = 0.5
                 fx(.uiSound(.empty, volume: 1), for: .only(player))

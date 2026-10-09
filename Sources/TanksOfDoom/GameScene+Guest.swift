@@ -11,7 +11,10 @@ extension GameScene {
         for (index, available) in snapshot.pickups.enumerated() where index < pickups.count {
             pickups[index].isAvailable = available
         }
-        if let mine = snapshot.players.first(where: { $0.slot == localPlayer.slot }) { applyOwnState(mine) }
+        if let mine = snapshot.players.first(where: { $0.slot == localPlayer.slot }) {
+            applyOwnState(mine)
+            reconcile(with: mine, acknowledged: snapshot.ackInputSeq)
+        }
     }
 
     /// Everything the host decided about the local player apart from where the tank is.
@@ -27,6 +30,8 @@ extension GameScene {
 
     func updateGuest(dt: Double) {
         guard let world = guestWorld else { return }
+        predictOwnTank(dt: dt)
+        predictOwnFireFX(dt: dt)
         sendInput(dt: dt)
         guard let frame = world.buffer.frame(at: lastUpdate) else { return }
         for state in frame.to.players {
@@ -59,15 +64,84 @@ extension GameScene {
             if player === localPlayer { cameraBase = tank.position }
         }
         guard !respawning else { return }
-        let from = a.has(PlayerSnapshot.respawning) ? b : a   // don't slide from where it died
-        let before = tank.position
-        tank.position = from.position.lerp(to: b.position, t).cgPoint
-        tank.heading = CGFloat(lerpAngle(from.heading, b.heading, t))
-        tank.turretAngle = CGFloat(lerpAngle(from.turret, b.turret, t))
-        leaveTracks(tank, moved: tank.position.distance(to: before))
+        if player === localPlayer {
+            // Our own hull is predicted; the turret is aimed by the host, so follow its newest angle.
+            if let latest = guestWorld?.buffer.latest?.players.first(where: { $0.slot == player.slot }) {
+                tank.turretAngle = CGFloat(lerpAngle(Float(tank.turretAngle), latest.turret, 0.5))
+            }
+        } else {
+            let from = a.has(PlayerSnapshot.respawning) ? b : a   // don't slide from where it died
+            let before = tank.position
+            tank.position = from.position.lerp(to: b.position, t).cgPoint
+            tank.heading = CGFloat(lerpAngle(from.heading, b.heading, t))
+            tank.turretAngle = CGFloat(lerpAngle(from.turret, b.turret, t))
+            leaveTracks(tank, moved: tank.position.distance(to: before))
+        }
         tank.isInvulnerable = b.has(PlayerSnapshot.invulnerable)
         tank.alpha = tank.isInvulnerable && Int(lastUpdate * 8) % 2 == 0 ? 0.35 : 1
         if b.has(PlayerSnapshot.destroyed) { tank.showWreck() }
+    }
+
+    /// Drives our own tank immediately from local keys, and eases in any pending correction.
+    private func predictOwnTank(dt: Double) {
+        guard let world = guestWorld else { return }
+        let tank = localPlayer.tank
+        guard !tank.isHidden, !tank.isDestroyed else { return }
+        let drove = drive(tank, with: localPlayer.input, dt: dt, blockers: allTanks)
+        if drove.distance > 0 { leaveTracks(tank, moved: drove.distance) }
+        // These keys reach the host in the next input frame, numbered inputSeq + 1.
+        world.history.record(seq: world.inputSeq + 1, input: localPlayer.input, dt: dt)
+        let step = world.correction * CGFloat(min(1, dt / GuestWorld.correctionTime))
+        tank.position = tank.position + step
+        world.correction = world.correction - step
+    }
+
+    /// Re-runs unconfirmed inputs from the host's position. Small errors are eased in, big ones snap.
+    private func reconcile(with mine: PlayerSnapshot, acknowledged seq: UInt32) {
+        guard let world = guestWorld else { return }
+        let tank = localPlayer.tank
+        world.history.acknowledge(through: seq)
+        guard !tank.isHidden, !mine.has(PlayerSnapshot.respawning) else {
+            world.correction = .zero
+            return
+        }
+        let shown = tank.position
+        let shownHeading = tank.heading
+        tank.position = mine.position.cgPoint
+        tank.heading = CGFloat(mine.heading)
+        for entry in world.history.entries {
+            _ = drive(tank, with: entry.input, dt: entry.dt, blockers: allTanks)
+        }
+        let error = tank.position - shown
+        if error.length > GuestWorld.snapDistance {
+            world.correction = .zero   // too far off: stay where the host says
+            return
+        }
+        tank.position = shown
+        if abs(normalizeAngle(tank.heading - shownHeading)) < 0.02 { tank.heading = shownHeading }
+        world.correction = error.length < GuestWorld.ignoreDistance ? .zero : error
+    }
+
+    /// Muzzle flash, sound and kick for our own shots straight away. The host leaves these out for us.
+    private func predictOwnFireFX(dt: Double) {
+        guard let world = guestWorld else { return }
+        let tank = localPlayer.tank
+        let input = localPlayer.input
+        world.mainCooldown -= dt
+        world.machineGunCooldown -= dt
+        guard !tank.isHidden, !tank.isDestroyed else { return }
+        if input.firePrimary && world.mainCooldown <= 0 && tank.stats.shells > 0 {
+            world.mainCooldown = Combat.spec(.mainGun).reload
+            playLocally(.muzzleFlash(at: tank.muzzlePosition.vec, angle: Float(tank.turretAngle), big: true))
+            playLocally(.sound(.cannon, at: tank.position.vec, volume: 1))
+            shake(4, duration: 0.15)
+        }
+        if input.fireSecondary && world.machineGunCooldown <= 0 && tank.stats.rounds > 0 {
+            world.machineGunCooldown = Combat.spec(.machineGun).reload
+            let origin = tank.position + CGPoint(angle: tank.turretAngle, length: 30)
+            playLocally(.muzzleFlash(at: origin.vec, angle: Float(tank.turretAngle), big: false))
+            playLocally(.sound(.machineGun, at: origin.vec, volume: 0.5))
+        }
     }
 
     private func mirrorEnemies(_ frame: SnapshotBuffer.Frame) {
