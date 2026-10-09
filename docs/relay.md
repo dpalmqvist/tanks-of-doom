@@ -21,7 +21,7 @@ Settings (environment variables):
 | `PORT` | `8080` | TCP port to listen on |
 | `ROOM_TTL` | `600` | Seconds a host may wait for a guest before the room is closed |
 
-Fixed limits: 500 rooms, 64 KB per frame, 100 frames per second per connection.
+Fixed limits: 500 rooms, 64 KB per frame, 100 frames per second per connection, with up to 10 s of burst.
 
 ## On a server
 

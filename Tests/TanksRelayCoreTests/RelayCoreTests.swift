@@ -108,7 +108,8 @@ private func pairedRelay() -> (RelayCore<Int>, String) {
     var relay = pairedRelay().0
     var rng = SeededRandom(seed: 8)
     var last: [RelayAction<Int>] = []
-    for _ in 0...Int(RelayLimits.framesPerSecond) {
+    // A sustained flood: more than the whole burst allowance (plus any refill) at one instant.
+    for _ in 0...Int(RelayLimits.framesPerSecond * RelayLimits.burstSeconds) {
         last = relay.received([36], from: 2, now: 5, using: &rng)
     }
     #expect(last == [.close(2)])
@@ -117,8 +118,34 @@ private func pairedRelay() -> (RelayCore<Int>, String) {
     #expect(actual14 == [.close(1)])
 }
 
+@Test func aBacklogFlushedAfterANetworkHiccupIsAllowed() {
+    var relay = pairedRelay().0
+    var rng = SeededRandom(seed: 10)
+    // Steady play at ~30 frames a second for a few seconds...
+    for i in 0..<90 {
+        _ = relay.received([36], from: 2, now: 1 + Double(i) / 30, using: &rng)
+    }
+    // ...then a 5 s uplink stall, after which the backlog arrives in one burst.
+    var forwarded = 0
+    for _ in 0..<150 {
+        let actions = relay.received([36], from: 2, now: 9, using: &rng)
+        if actions == [.send([36], to: 1)] { forwarded += 1 }
+    }
+    #expect(forwarded == 150)
+}
+
+@Test func rateLimitBurstIsCappedAndRefillsAtTheRate() {
+    var limiter = FrameRateLimiter(perSecond: 2, burst: 4)
+    var allowed = 0
+    for _ in 0..<10 where limiter.allow(now: 0) { allowed += 1 }
+    #expect(allowed == 4)                 // starts full, capped at the burst
+    var afterLongWait = 0
+    for _ in 0..<10 where limiter.allow(now: 100) { afterLongWait += 1 }
+    #expect(afterLongWait == 4)           // a long silence never saves up more than the burst
+}
+
 @Test func rateLimitRefillsOverTime() {
-    var limiter = FrameRateLimiter(perSecond: 2)
+    var limiter = FrameRateLimiter(perSecond: 2, burst: 2)
     let first = limiter.allow(now: 0)
     let second = limiter.allow(now: 0)
     let third = limiter.allow(now: 0)

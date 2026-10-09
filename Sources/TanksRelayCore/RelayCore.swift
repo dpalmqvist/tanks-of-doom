@@ -4,23 +4,28 @@ import TanksNet
 public enum RelayLimits {
     public static let maxFrameBytes = 1 << 16
     public static let framesPerSecond = 100.0
+    /// Seconds of frames a connection may save up, so a backlog flushed after a network hiccup
+    /// (inside the game's 10 s grace) isn't mistaken for a flood.
+    public static let burstSeconds = 10.0
     public static let maxRooms = 500
     public static let defaultRoomTTL = 600.0
 }
 
-/// Token bucket: `perSecond` frames a second, with up to a second's worth saved up.
+/// Token bucket: refills at `perSecond` frames a second, holding at most `burst` (and starting full).
 public struct FrameRateLimiter: Sendable {
     public let perSecond: Double
+    public let burst: Double
     private var tokens: Double
     private var last: Double?
 
-    public init(perSecond: Double) {
+    public init(perSecond: Double, burst: Double) {
         self.perSecond = perSecond
-        tokens = perSecond
+        self.burst = burst
+        tokens = burst
     }
 
     public mutating func allow(now: Double) -> Bool {
-        if let last { tokens = min(perSecond, tokens + (now - last) * perSecond) }
+        if let last { tokens = min(burst, tokens + (now - last) * perSecond) }
         last = now
         guard tokens >= 1 else { return false }
         tokens -= 1
@@ -50,7 +55,8 @@ public struct RelayCore<Connection: Hashable> {
 
     public mutating func received(_ bytes: [UInt8], from connection: Connection, now: Double,
                                   using rng: inout some RandomNumberGenerator) -> [RelayAction<Connection>] {
-        var limiter = limiters[connection] ?? FrameRateLimiter(perSecond: framesPerSecond)
+        var limiter = limiters[connection]
+            ?? FrameRateLimiter(perSecond: framesPerSecond, burst: framesPerSecond * RelayLimits.burstSeconds)
         let allowed = limiter.allow(now: now)
         limiters[connection] = limiter
         guard allowed, bytes.count <= RelayLimits.maxFrameBytes else { return [.close(connection)] }
