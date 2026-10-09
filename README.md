@@ -63,6 +63,7 @@ swift build                  # build only (debug)
 swift build -c release       # optimized build
 .build/release/TanksOfDoom   # run the optimized build
 swift test                   # run the unit tests for the game logic
+swift run TanksRelay         # run the multiplayer relay server locally
 ```
 
 ## Controls
@@ -81,6 +82,33 @@ swift test                   # run the unit tests for the game logic
 | Quit | **Cmd-Q** |
 
 **Aiming:** by default the turret aims itself at the nearest threat it can see. Enemy tanks come first, then soldiers in windows. Red brackets mark the target, and a red ring marks it on the minimap. Press **Tab** to switch targets. **Q/E** take over by hand, and auto-aim resumes 3 seconds after you let go.
+
+## Multiplayer
+
+Two players on two Macs fight it out in the same city, with the Rust Brigade still roaming and the
+snipers still in their windows. Each player starts with the same number of lives. Every death costs
+one, whether your opponent got you or a librarian with a bazooka did. You respawn somewhere random
+after three seconds, blinking and untouchable until you fire or three more seconds pass. Take all of
+your opponent's lives to win.
+
+1. Press **2** on the title screen.
+2. One player presses **H** to host and reads out the five-letter room code. The host picks the
+   number of lives (←/→) and how much AI joins in (↑/↓).
+3. The other player presses **J**, types the code and presses **Enter**, then **Enter** again when
+   ready.
+4. The host presses **Enter** to start.
+
+Each player has their own base (olive bottom-left for the host, blue top-right for the guest) and can
+only repair there. In a match, **Esc** offers to leave instead of pausing. After the match, both
+pressing **R** starts a rematch in a new city.
+
+Matches go through a small relay server (see [docs/relay.md](docs/relay.md)). To play against
+yourself locally:
+
+```bash
+swift run TanksRelay                                          # terminal 1
+TANKS_RELAY_URL=ws://localhost:8080/ws swift run TanksOfDoom   # terminals 2 and 3
+```
 
 ## How to Survive
 

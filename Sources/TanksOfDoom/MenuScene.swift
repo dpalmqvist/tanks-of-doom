@@ -101,6 +101,7 @@ extension MenuScene {
             Line(text: "Q/E turn turret · TAB next target · SPACE main gun · F machine gun", size: 17, color: .lightGray, font: mono),
             Line(text: "Find hidden GAS and AMMO caches · return to BASE for repairs", size: 17, color: .lightGray, font: mono),
             Line(text: "ESC pause · M minimap size · R abandon tank when out of fuel", size: 17, color: .lightGray, font: mono),
+            Line(text: "Press 2 for online MULTIPLAYER against a friend", size: 17, color: .systemYellow, font: mono),
         ]
         if HighScores.bestLevels > 0 || HighScores.bestKills > 0 {
             lines.append(Line(text: " ", size: 10))
