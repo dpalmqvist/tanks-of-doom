@@ -19,6 +19,7 @@ let package = Package(
             .product(name: "NIOHTTP1", package: "swift-nio"),
             .product(name: "NIOWebSocket", package: "swift-nio"),
         ]),
+        .executableTarget(name: "TanksRelay", dependencies: ["TanksRelayCore", "TanksNet"]),
         .testTarget(name: "TanksCoreTests", dependencies: ["TanksCore"]),
         .testTarget(name: "TanksNetTests", dependencies: ["TanksNet", "TanksCore"]),
         .testTarget(name: "TanksRelayCoreTests", dependencies: ["TanksRelayCore", "TanksNet", "TanksCore"]),
