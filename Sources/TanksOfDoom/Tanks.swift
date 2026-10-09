@@ -51,27 +51,53 @@ class TankNode: SKNode {
     }
 }
 
-final class PlayerTank: TankNode {
+final class PlayerTank: TankNode, Hostile {
     static let forwardSpeed: CGFloat = 170
     static let reverseSpeed: CGFloat = 100
     static let turnRate: CGFloat = 2.2
     static let turretTurnRate: CGFloat = 4.0
 
+    let slot: PlayerSlot
     var stats = TankStats()
     var mainCooldown: Double = 0
     var machineGunCooldown: Double = 0
+    /// Spawn protection in versus: takes no damage and the AI looks elsewhere.
+    var isInvulnerable = false
     var isDestroyed: Bool { stats.isDestroyed }
 
-    init() {
-        super.init(hullTexture: Textures.playerHull, turretTexture: Textures.playerTurret)
+    var netID: UInt32 { UInt32(slot.rawValue + 1) }
+    var hitRadius: CGFloat { TankNode.radius }
+    var targetKind: TargetKind { .tank }
+    /// Hidden tanks are waiting to respawn in versus.
+    var canBeHit: Bool { !isDestroyed && !isInvulnerable && !isHidden }
+
+    init(slot: PlayerSlot) {
+        self.slot = slot
+        super.init(hullTexture: Textures.hull(for: slot), turretTexture: Textures.turret(for: slot))
     }
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    func applyDamage(_ amount: Int, from shooter: Combatant, in scene: GameScene) {
+        scene.damagePlayer(self, amount, from: shooter)
+    }
 
     func showWreck() {
         for part in [hull, turret] {
             part.color = .black
             part.colorBlendFactor = 0.75
         }
+    }
+
+    /// Back in factory condition at `point` (versus respawn).
+    func respawn(at point: CGPoint, heading: CGFloat) {
+        stats = TankStats()
+        mainCooldown = 0
+        machineGunCooldown = 0
+        position = point
+        self.heading = heading
+        turretAngle = heading
+        for part in [hull, turret] { part.colorBlendFactor = 0 }
+        isHidden = false
     }
 }

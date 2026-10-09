@@ -6,11 +6,16 @@ extension GameScene {
         var rng = SeededRandom(seed: level.seed ^ 0x5EED)
         for building in level.buildings { buildingWindows[building.id] = windows(of: building) }
         for spawn in level.infantry {
-            let soldier = InfantryNode(spawn: spawn, initialDelay: Double.random(in: 0...3, using: &rng))
-            soldier.position = level.buildings[spawn.buildingID].worldCenter
-            worldNode.addChild(soldier)
-            infantry.append(soldier)
+            addSoldier(spawn, initialDelay: Double.random(in: 0...3, using: &rng))
         }
+    }
+
+    func addSoldier(_ spawn: InfantrySpawn, initialDelay: Double) {
+        let soldier = InfantryNode(spawn: spawn, initialDelay: initialDelay)
+        soldier.netID = makeNetID()
+        soldier.position = level.buildings[spawn.buildingID].worldCenter
+        worldNode.addChild(soldier)
+        infantry.append(soldier)
     }
 
     /// Perimeter tiles of a building — where a soldier can appear.
@@ -24,20 +29,20 @@ extension GameScene {
 
     func updateInfantry(dt: Double) {
         let map = level.map
-        let player = playerTank.position
-        let playerGrid = map.grid(player)
         for soldier in infantry {
             guard let windows = buildingWindows[soldier.buildingID], !windows.isEmpty else { continue }
-            let window = windows.min { map.center($0).distance(to: player) < map.center($1).distance(to: player) }!
+            let aim = aiTarget(from: level.buildings[soldier.buildingID].worldCenter, sightRange: soldier.brain.range)?.position
+            let window = aim.map { p in
+                windows.min { map.center($0).distance(to: p) < map.center($1).distance(to: p) }!
+            } ?? windows[0]
             let windowPoint = map.center(window)
-            let distance = windowPoint.distance(to: player)
-            let inRange = Double(distance) <= soldier.brain.range
-            let visible = !playerTank.isDestroyed && inRange
-                && LineOfSight.isClear(in: map, from: window, to: playerGrid, ignoringBuilding: soldier.buildingID)
+            let distance = aim.map { Double(windowPoint.distance(to: $0)) } ?? .infinity
+            let visible = aim.map { distance <= soldier.brain.range
+                && LineOfSight.isClear(in: map, from: window, to: map.grid($0), ignoringBuilding: soldier.buildingID) } ?? false
 
-            switch soldier.brain.update(dt: dt, playerVisible: visible, distance: playerTank.isDestroyed ? .infinity : Double(distance)) {
+            switch soldier.brain.update(dt: dt, playerVisible: visible, distance: distance) {
             case .expose:
-                soldier.position = windowPoint + CGPoint(angle: windowPoint.angle(to: player), length: tileSize * 0.45)
+                soldier.position = windowPoint + CGPoint(angle: windowPoint.angle(to: aim ?? windowPoint), length: tileSize * 0.45)
                 soldier.post = window
                 soldier.removeAllActions()
                 soldier.run(.fadeIn(withDuration: 0.15))
@@ -49,20 +54,20 @@ extension GameScene {
                 break
             }
 
-            guard soldier.isExposed, !playerTank.isDestroyed else { continue }
-            soldier.zRotation = soldier.position.angle(to: player)
+            guard soldier.isExposed, let aim else { continue }
+            soldier.zRotation = soldier.position.angle(to: aim)
             soldier.cooldown -= dt
             guard soldier.cooldown <= 0 else { continue }
-            let weapon = soldier.brain.kind.weapon
+            let weapon = soldier.kind.weapon
             soldier.cooldown = Combat.spec(weapon).reload
             if weapon == .mortar {
-                fireMortar(from: soldier.position, at: player + CGPoint(x: .random(in: -50...50), y: .random(in: -50...50)))
+                fireMortar(from: soldier.position, at: aim + CGPoint(x: .random(in: -50...50), y: .random(in: -50...50)))
             } else if let post = soldier.post,
-                      LineOfSight.isClear(in: map, from: post, to: playerGrid) {
+                      LineOfSight.isClear(in: map, from: post, to: map.grid(aim)) {
                 // Fire only along a clear line from where the soldier actually stands; their own
                 // building blocks too (the post tile itself is an endpoint and never blocks).
                 fire(weapon, from: soldier.position, angle: soldier.zRotation + .random(in: -0.07...0.07),
-                     byPlayer: false, ownerBuilding: soldier.buildingID)
+                     shooter: .infantry(soldier.kind), ownerBuilding: soldier.buildingID)
             }
         }
     }

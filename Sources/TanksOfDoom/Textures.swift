@@ -28,6 +28,12 @@ enum Textures {
     static let enemyHull = tankHull(body: color(0.55, 0.27, 0.2), dark: color(0.3, 0.13, 0.1))
     static let enemyTurret = tankTurret(body: color(0.62, 0.32, 0.24), dark: color(0.3, 0.13, 0.1))
 
+    static let guestHull = tankHull(body: color(0.3, 0.42, 0.55), dark: color(0.15, 0.21, 0.3))
+    static let guestTurret = tankTurret(body: color(0.36, 0.5, 0.64), dark: color(0.15, 0.21, 0.3))
+
+    static func hull(for slot: PlayerSlot) -> SKTexture { slot == .host ? playerHull : guestHull }
+    static func turret(for slot: PlayerSlot) -> SKTexture { slot == .host ? playerTurret : guestTurret }
+
     static func tankHull(body: CGColor, dark: CGColor) -> SKTexture {
         render(CGSize(width: 56, height: 42)) { ctx, s in
             ctx.setFillColor(color(0.12, 0.12, 0.12))

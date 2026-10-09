@@ -11,6 +11,8 @@ final class EnemyTank: TankNode, Hostile {
     let driveSpeed: CGFloat
     let reactionTime: Double
     let patrol: [GridPoint]
+    let spawn: EnemyTankSpawn
+    var netID: UInt32 = 0
 
     private var brain = EnemyTankBrain()
     private var patrolIndex = 0
@@ -35,6 +37,7 @@ final class EnemyTank: TankNode, Hostile {
         driveSpeed = CGFloat(difficulty.enemyTankSpeed)
         reactionTime = difficulty.enemyReactionTime
         patrol = spawn.patrol
+        self.spawn = spawn
         super.init(hullTexture: Textures.enemyHull, turretTexture: Textures.enemyTurret)
         healthBack.position = CGPoint(x: 0, y: 34)
         healthBack.zPosition = 3
@@ -49,7 +52,7 @@ final class EnemyTank: TankNode, Hostile {
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func applyDamage(_ amount: Int, in scene: GameScene) {
+    func applyDamage(_ amount: Int, from shooter: Combatant, in scene: GameScene) {
         guard armor > 0 else { return }
         armor -= Double(amount)
         healthBack.isHidden = false
@@ -61,15 +64,14 @@ final class EnemyTank: TankNode, Hostile {
 
     func update(dt: Double, scene: GameScene) {
         let map = scene.level.map
-        let player = scene.playerTank
-        let toPlayer = position.distance(to: player.position)
-        let sees = !player.isDestroyed && Double(toPlayer) <= EnemyTankBrain.sightRange
-            && scene.hasLineOfSight(from: position, to: player.position)
-        if sees { lastKnownPlayer = player.position }
+        let target = scene.aiTarget(from: position, sightRange: EnemyTankBrain.sightRange)
+        let toTarget = target.map { position.distance(to: $0.position) } ?? .greatestFiniteMagnitude
+        let sees = target.map { Double(toTarget) <= EnemyTankBrain.sightRange && scene.hasLineOfSight(from: position, to: $0.position) } ?? false
+        if sees, let target { lastKnownPlayer = target.position }
         let reachedSearchPoint = lastKnownPlayer.map { position.distance(to: $0) < tileSize } ?? true
 
         let previous = brain.state
-        let perception = EnemyPerception(canSeePlayer: sees, distanceToPlayer: Double(toPlayer),
+        let perception = EnemyPerception(canSeePlayer: sees, distanceToPlayer: Double(toTarget),
                                          armorFraction: armor / maxArmor, reachedSearchPoint: reachedSearchPoint)
         let state = brain.update(perception, dt: dt)
         if state != previous {
@@ -88,39 +90,41 @@ final class EnemyTank: TankNode, Hostile {
             }
             aimTurret(at: heading, dt: dt)
         case .attack:
-            if toPlayer > CGFloat(Combat.spec(.enemyShell).range) * 0.7 {
+            guard let target else { break }
+            if toTarget > CGFloat(Combat.spec(.enemyShell).range) * 0.7 {
                 if repathTimer <= 0 {
-                    setPath(to: player.position, map: map)
+                    setPath(to: target.position, map: map)
                     repathTimer = 1.5
                 }
             } else {
                 path = []
             }
-            engage(player, scene: scene, dt: dt)
+            engage(target, scene: scene, dt: dt)
         case .search:
-            if path.isEmpty && repathTimer <= 0, let target = lastKnownPlayer {
-                setPath(to: target, map: map)
+            if path.isEmpty && repathTimer <= 0, let lastSeen = lastKnownPlayer {
+                setPath(to: lastSeen, map: map)
                 repathTimer = 2
             }
             aimTurret(at: heading, dt: dt)
         case .retreat:
             if path.isEmpty && repathTimer <= 0 {
-                let refuge = patrol.max { map.center($0).distance(to: player.position) < map.center($1).distance(to: player.position) } ?? patrol[0]
+                let threat = target?.position ?? position
+                let refuge = patrol.max { map.center($0).distance(to: threat) < map.center($1).distance(to: threat) } ?? patrol[0]
                 setPath(to: map.center(refuge), map: map)
                 repathTimer = 2
             }
-            if sees { engage(player, scene: scene, dt: dt) } else { aimTurret(at: heading, dt: dt) }
+            if sees, let target { engage(target, scene: scene, dt: dt) } else { aimTurret(at: heading, dt: dt) }
         }
         followPath(dt: dt, scene: scene)
     }
 
-    private func engage(_ player: PlayerTank, scene: GameScene, dt: Double) {
-        let angle = position.angle(to: player.position)
+    private func engage(_ target: PlayerTank, scene: GameScene, dt: Double) {
+        let angle = position.angle(to: target.position)
         aimTurret(at: angle, dt: dt)
         let aligned = abs(normalizeAngle(turretAngle - angle)) < 0.08
         let ready = brain.timeInState >= reactionTime || brain.state == .retreat
-        guard aligned, ready, fireCooldown <= 0, scene.hasLineOfSight(from: position, to: player.position) else { return }
-        scene.fire(.enemyShell, from: muzzlePosition, angle: turretAngle + .random(in: -0.06...0.06), byPlayer: false)
+        guard aligned, ready, fireCooldown <= 0, scene.hasLineOfSight(from: position, to: target.position) else { return }
+        scene.fire(.enemyShell, from: muzzlePosition, angle: turretAngle + .random(in: -0.06...0.06), shooter: .enemyTank)
         fireCooldown = Combat.spec(.enemyShell).reload
     }
 

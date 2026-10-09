@@ -10,11 +10,16 @@ extension GameScene {
     }
 
     func updateHUD() {
-        hud.update(stats: playerTank.stats, level: levelNumber, enemiesLeft: enemies.count, inBase: inBase)
-        let spotted = enemies
-            .filter { $0.position.distance(to: playerTank.position) <= 900 && hasLineOfSight(from: playerTank.position, to: $0.position) }
-            .map(\.position)
-        hud.minimap.update(player: playerTank.position, enemies: spotted, target: lockedTarget?.position)
+        let tank = localPlayer.tank
+        hud.update(stats: tank.stats, level: levelNumber, enemiesLeft: enemies.count, inBase: localPlayer.inBase)
+        let spotted = enemies.filter { canSpot($0.position) }.map(\.position)
+        hud.minimap.update(player: tank.position, enemies: spotted, target: lockedTarget(of: localPlayer)?.position)
+    }
+
+    /// The minimap shows a tank only while the local player has eyes on it.
+    func canSpot(_ point: CGPoint) -> Bool {
+        let eye = localPlayer.tank.position
+        return point.distance(to: eye) <= 900 && hasLineOfSight(from: eye, to: point)
     }
 
     override func didChangeSize(_ oldSize: CGSize) {

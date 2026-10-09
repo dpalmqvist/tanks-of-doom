@@ -30,49 +30,56 @@ extension GameScene {
     static let autoAimRange: CGFloat = 750
     static let manualTurretRate: CGFloat = 2.5
 
-    private func targetID(_ hostile: Hostile) -> Int { ObjectIdentifier(hostile).hashValue }
+    /// Everything `player` may shoot at: the AI and any other player's tank.
+    func hostiles(for player: Player) -> [Hostile] {
+        targets(of: .player(player.slot))
+    }
 
     /// Hittable hostiles within main-gun range and in clear line of sight of the player.
-    private func targetCandidates() -> [(candidate: TargetCandidate, node: Hostile)] {
-        hostiles.compactMap { hostile in
+    private func targetCandidates(for player: Player) -> [TargetCandidate] {
+        let origin = player.tank.position
+        return hostiles(for: player).compactMap { hostile in
             guard hostile.canBeHit,
-                  hostile.position.distance(to: playerTank.position) <= Self.autoAimRange,
-                  hasLineOfSight(from: playerTank.position, to: hostile.position) else { return nil }
-            let candidate = TargetCandidate(id: targetID(hostile), position: hostile.position.world, isTank: hostile is EnemyTank)
-            return (candidate, hostile)
+                  hostile.position.distance(to: origin) <= Self.autoAimRange,
+                  hasLineOfSight(from: origin, to: hostile.position) else { return nil }
+            return TargetCandidate(id: Int(hostile.netID), position: hostile.position.world, isTank: hostile.targetKind == .tank)
         }
     }
 
-    var lockedTarget: Hostile? {
-        guard turretAim.mode == .auto, let id = lockedTargetID else { return nil }
-        return hostiles.first { targetID($0) == id }
+    func lockedTarget(of player: Player) -> Hostile? {
+        guard player.turretAim.mode == .auto, let id = player.lockedTargetID else { return nil }
+        return hostiles(for: player).first { Int($0.netID) == id }
     }
 
     /// Tab: switch to the next visible target (and back to auto-aim).
-    func cycleTarget() {
-        turretAim.cycleTarget()
-        let found = targetCandidates()
-        lockedTargetID = TargetSelector.next(after: lockedTargetID, candidates: found.map(\.candidate), from: playerTank.position.world)?.id
+    func cycleTarget(for player: Player) {
+        player.turretAim.cycleTarget()
+        player.lockedTargetID = TargetSelector.next(after: player.lockedTargetID, candidates: targetCandidates(for: player),
+                                                    from: player.tank.position.world)?.id
     }
 
-    func updateTurret(dt: Double) {
-        turretAim.update(dt: dt, manualHeld: input.turretManualHeld)
+    func updateTurret(for player: Player, dt: Double) {
+        let tank = player.tank
+        player.turretAim.update(dt: dt, manualHeld: player.input.turretManualHeld)
         let maxStep = PlayerTank.turretTurnRate * CGFloat(dt)
-        switch turretAim.mode {
+        switch player.turretAim.mode {
         case .manual:
             var direction: CGFloat = 0
-            if input.turretLeft { direction += 1 }
-            if input.turretRight { direction -= 1 }
-            playerTank.turretAngle += direction * Self.manualTurretRate * CGFloat(dt)
+            if player.input.turretLeft { direction += 1 }
+            if player.input.turretRight { direction -= 1 }
+            tank.turretAngle += direction * Self.manualTurretRate * CGFloat(dt)
         case .auto:
-            let found = targetCandidates()
-            lockedTargetID = TargetSelector.autoTarget(current: lockedTargetID, candidates: found.map(\.candidate),
-                                                       from: playerTank.position.world)?.id
+            player.lockedTargetID = TargetSelector.autoTarget(current: player.lockedTargetID, candidates: targetCandidates(for: player),
+                                                              from: tank.position.world)?.id
             // With nothing to track, the turret settles back over the hull's nose.
-            let aim = lockedTarget.map { playerTank.position.angle(to: $0.position) } ?? playerTank.heading
-            playerTank.turretAngle = rotateAngle(playerTank.turretAngle, toward: aim, maxStep: maxStep)
+            let aim = lockedTarget(of: player).map { tank.position.angle(to: $0.position) } ?? tank.heading
+            tank.turretAngle = rotateAngle(tank.turretAngle, toward: aim, maxStep: maxStep)
         }
-        if let target = lockedTarget {
+    }
+
+    /// Corner brackets around whatever the local player's turret is locked onto.
+    func updateTargetMarker() {
+        if let target = lockedTarget(of: localPlayer) {
             targetMarker.isHidden = false
             targetMarker.position = target.position
         } else {

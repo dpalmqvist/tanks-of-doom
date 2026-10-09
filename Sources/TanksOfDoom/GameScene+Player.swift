@@ -2,44 +2,56 @@ import SpriteKit
 import TanksCore
 
 extension GameScene {
-    func updatePlayer(dt: Double) {
-        guard !playerTank.isDestroyed else { return }
-        let map = level.map
+    func updatePlayers(dt: Double) {
+        for player in players {
+            updatePlayer(player, dt: dt)
+            updateWeapons(for: player, dt: dt)
+        }
+    }
+
+    func updatePlayer(_ player: Player, dt: Double) {
+        let tank = player.tank
+        guard !tank.isDestroyed, !tank.isHidden else { return }
+        let drove = drive(tank, with: player.input, dt: dt, blockers: allTanks)
+        if drove.distance > 0 { leaveTracks(tank, moved: drove.distance) }
+        let hadFuel = tank.stats.fuel > 0
+        tank.stats.burnFuel(seconds: dt, moving: drove.moving)
+        if hadFuel && tank.stats.fuel <= 0 {
+            effects.floatingText("OUT OF FUEL!", at: tank.position + CGPoint(x: 0, y: 44), color: .systemOrange)
+        }
+
+        updateTurret(for: player, dt: dt)
+
+        player.inBase = level.baseIndex(at: level.map.grid(tank.position)) == player.slot.baseIndex
+        if player.inBase { tank.stats.applyBase(seconds: dt) }
+        collectPickups(for: player)
+    }
+
+    /// Turns and drives `tank` as `input` asks. Shared by the simulation and the guest's own-tank prediction,
+    /// so it touches nothing but the tank.
+    func drive(_ tank: PlayerTank, with input: InputState, dt: Double, blockers: [TankNode]) -> (distance: CGFloat, moving: Bool) {
+        guard tank.stats.canMove else { return (0, false) }
         var turn: CGFloat = 0
         if input.left { turn += 1 }
         if input.right { turn -= 1 }
-        var drive: CGFloat = 0
-        if input.forward { drive += 1 }
-        if input.backward { drive -= 1 }
+        var throttle: CGFloat = 0
+        if input.forward { throttle += 1 }
+        if input.backward { throttle -= 1 }
 
         var moving = false
-        if playerTank.stats.canMove {
-            if turn != 0 {
-                playerTank.heading += turn * PlayerTank.turnRate * CGFloat(dt)
-                moving = true
-            }
-            if drive != 0 {
-                let speed = (drive > 0 ? PlayerTank.forwardSpeed : PlayerTank.reverseSpeed)
-                    * CGFloat(map.speedMultiplier(at: playerTank.position.world))
-                let moved = playerTank.move(by: CGPoint(angle: playerTank.heading, length: drive * speed * CGFloat(dt)),
-                                            in: map, blockers: enemies)
-                if moved > 0 {
-                    moving = true
-                    leaveTracks(playerTank, moved: moved)
-                }
-            }
+        if turn != 0 {
+            tank.heading += turn * PlayerTank.turnRate * CGFloat(dt)
+            moving = true
         }
-        let hadFuel = playerTank.stats.fuel > 0
-        playerTank.stats.burnFuel(seconds: dt, moving: moving)
-        if hadFuel && playerTank.stats.fuel <= 0 {
-            effects.floatingText("OUT OF FUEL!", at: playerTank.position + CGPoint(x: 0, y: 44), color: .systemOrange)
+        var distance: CGFloat = 0
+        if throttle != 0 {
+            let speed = (throttle > 0 ? PlayerTank.forwardSpeed : PlayerTank.reverseSpeed)
+                * CGFloat(level.map.speedMultiplier(at: tank.position.world))
+            distance = tank.move(by: CGPoint(angle: tank.heading, length: throttle * speed * CGFloat(dt)),
+                                 in: level.map, blockers: blockers)
+            if distance > 0 { moving = true }
         }
-
-        updateTurret(dt: dt)
-
-        inBase = level.isBase(map.grid(playerTank.position))
-        if inBase { playerTank.stats.applyBase(seconds: dt) }
-        collectPickups()
+        return (distance, moving)
     }
 
     func leaveTracks(_ tank: TankNode, moved: CGFloat) {
@@ -49,11 +61,12 @@ extension GameScene {
         effects.trackMark(at: tank.position, angle: tank.heading)
     }
 
-    func collectPickups() {
-        for pickup in pickups where pickup.position.distance(to: playerTank.position) < 40 {
-            playerTank.stats.collect(pickup.kind)
+    func collectPickups(for player: Player) {
+        let tank = player.tank
+        for pickup in pickups where pickup.position.distance(to: tank.position) < 40 {
+            tank.stats.collect(pickup.kind)
             effects.floatingText(pickup.kind == .gas ? "+GAS" : "+AMMO", at: pickup.position, color: .systemGreen)
-            Audio.shared.play(.pickup)
+            if player === localPlayer { Audio.shared.play(.pickup) }
             pickup.removeFromParent()
             pickups.removeAll { $0 === pickup }
         }

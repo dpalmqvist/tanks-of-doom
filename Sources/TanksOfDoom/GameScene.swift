@@ -12,24 +12,23 @@ final class GameScene: SKScene {
     var renderer: WorldRenderer!
     var effects: Effects!
     var hud: HUD!
-    let playerTank = PlayerTank()
+    /// Every human-driven tank. The campaign has one.
+    let players: [Player]
+    /// The player at this keyboard: the camera, HUD and sound follow them.
+    let localPlayer: Player
     var pickups: [PickupNode] = []
     var projectiles: [Projectile] = []
     var mortars: [MortarShell] = []
     var enemies: [EnemyTank] = []
     var infantry: [InfantryNode] = []
     var buildingWindows: [Int: [GridPoint]] = [:]
-    /// Everything the player can shoot.
-    var hostiles: [Hostile] { (enemies as [Hostile]) + (infantry as [Hostile]) }
+    /// Ids 1–16 are reserved for player tanks; every other networked thing counts up from here.
+    private var lastNetID: UInt32 = 16
 
-    var input = InputState()
     var lastUpdate: TimeInterval = 0
     var cameraBase = CGPoint.zero
     var shakeTime: Double = 0
     var shakeMagnitude: CGFloat = 0
-    var inBase = false
-    var turretAim = TurretAim()
-    var lockedTargetID: Int?
     let targetMarker = TargetMarker()
     var isGamePaused = false
     var endTimer: Double?
@@ -42,6 +41,9 @@ final class GameScene: SKScene {
         self.levelNumber = levelNumber
         self.runStats = runStats
         self.level = CityGenerator.generate(seed: .random(in: 0...UInt64.max), level: levelNumber)
+        let player = Player(slot: .host)
+        players = [player]
+        localPlayer = player
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -56,7 +58,7 @@ final class GameScene: SKScene {
         // Keys released while the window is in the background never arrive; forget them.
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                 object: view.window, queue: .main) { [weak self] _ in
-            self?.input = InputState()
+            self?.localPlayer.input = InputState()
         }
     }
 
@@ -82,31 +84,46 @@ final class GameScene: SKScene {
             pickups.append(pickup)
         }
 
-        playerTank.position = level.map.center(level.baseCenter)
-        playerTank.heading = .pi / 4
-        playerTank.turretAngle = .pi / 4
-        worldNode.addChild(playerTank)
+        for player in players {
+            placeAtBase(player)
+            worldNode.addChild(player.tank)
+        }
         spawnEnemies()
         spawnInfantry()
 
         addChild(cameraNode)
         camera = cameraNode
-        cameraBase = playerTank.position
+        cameraBase = localPlayer.tank.position
         cameraNode.position = cameraBase
         worldNode.addChild(targetMarker)
         setUpHUD()
+    }
+
+    /// Starts a player at their own base, facing the middle of the city.
+    func placeAtBase(_ player: Player) {
+        let tank = player.tank
+        tank.position = level.map.center(level.bases[player.slot.baseIndex].center)
+        let middle = CGPoint(x: CGFloat(level.map.width) * tileSize / 2, y: CGFloat(level.map.height) * tileSize / 2)
+        tank.heading = tank.position.angle(to: middle)
+        tank.turretAngle = tank.heading
+    }
+
+    /// A fresh id for a networked thing (AI tank, soldier, projectile, mortar).
+    func makeNetID() -> UInt32 {
+        lastNetID += 1
+        return lastNetID
     }
 
     override func update(_ currentTime: TimeInterval) {
         let dt = lastUpdate == 0 ? 1.0 / 60 : min(currentTime - lastUpdate, 1.0 / 30)
         lastUpdate = currentTime
         guard !isGamePaused, !levelOver else { return }
-        updatePlayer(dt: dt)
-        updatePlayerWeapons(dt: dt)
+        updatePlayers(dt: dt)
         updateEnemies(dt: dt)
         updateInfantry(dt: dt)
         updateProjectiles(dt: dt)
         updateMortars(dt: dt)
+        updateTargetMarker()
         updateCamera(dt: dt)
         updateHUD()
         checkLevelEnd(dt: dt)
@@ -120,7 +137,7 @@ final class GameScene: SKScene {
 
     func updateCamera(dt: Double) {
         let follow = CGFloat(min(1, 6 * dt))
-        var p = cameraBase + (playerTank.position - cameraBase) * follow
+        var p = cameraBase + (localPlayer.tank.position - cameraBase) * follow
         p.x = clampCamera(p.x, half: size.width / 2, extent: CGFloat(level.map.width) * tileSize)
         p.y = clampCamera(p.y, half: size.height / 2, extent: CGFloat(level.map.height) * tileSize)
         cameraBase = p
@@ -140,7 +157,7 @@ final class GameScene: SKScene {
     }
 
     func playSound(_ sound: Audio.Sound, at point: CGPoint, volume: Float = 1) {
-        let distance = Float(point.distance(to: playerTank.position))
+        let distance = Float(point.distance(to: localPlayer.tank.position))
         Audio.shared.play(sound, volume: volume * max(0, 1 - distance / 1400))
     }
 }

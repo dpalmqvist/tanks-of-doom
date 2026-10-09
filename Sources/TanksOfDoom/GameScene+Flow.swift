@@ -7,14 +7,15 @@ extension GameScene {
         guard endTimer == nil else { return }
         isGamePaused.toggle()
         worldNode.isPaused = isGamePaused
-        input = InputState()
+        localPlayer.input = InputState()
         hud.setPaused(isGamePaused)
     }
 
-    /// Lets a player stranded without fuel end the run instead of being soft-locked.
-    func abandonTank() {
-        guard !isGamePaused, endTimer == nil, !playerTank.isDestroyed, playerTank.stats.fuel <= 0 else { return }
-        damagePlayer(Int(playerTank.stats.armor.rounded(.up)))
+    /// Lets a player stranded without fuel give up the tank instead of being soft-locked.
+    func abandonTank(_ player: Player) {
+        let tank = player.tank
+        guard !isGamePaused, endTimer == nil, !tank.isDestroyed, !tank.isHidden, tank.stats.fuel <= 0 else { return }
+        damagePlayer(tank, Int(tank.stats.armor.rounded(.up)), from: nil)
     }
 
     func checkLevelEnd(dt: Double) {
@@ -24,7 +25,7 @@ extension GameScene {
             if remaining - dt <= 0 { finishLevel() }
             return
         }
-        if playerTank.isDestroyed {
+        if localPlayer.tank.isDestroyed {
             victory = false
             endTimer = 2.5
             hud.flash("TANK DESTROYED", color: .systemRed, duration: 2.5)
