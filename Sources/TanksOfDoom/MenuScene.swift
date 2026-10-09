@@ -25,11 +25,14 @@ final class MenuScene: SKScene {
     private let lines: [Line]
     private let prompt: String
     private let onContinue: (MenuScene) -> Void
+    private let shortcuts: [UInt16: (MenuScene) -> Void]
     private var acceptsInput = false
 
-    init(size: CGSize, lines: [Line], prompt: String, onContinue: @escaping (MenuScene) -> Void) {
+    init(size: CGSize, lines: [Line], prompt: String, shortcuts: [UInt16: (MenuScene) -> Void] = [:],
+         onContinue: @escaping (MenuScene) -> Void) {
         self.lines = lines
         self.prompt = prompt
+        self.shortcuts = shortcuts
         self.onContinue = onContinue
         super.init(size: size)
         scaleMode = .resizeFill
@@ -67,7 +70,13 @@ final class MenuScene: SKScene {
     }
 
     override func keyDown(with event: NSEvent) {
-        if [36, 76, 49].contains(event.keyCode) { proceed() }   // Return, keypad Enter, Space
+        if let action = shortcuts[event.keyCode] {
+            guard acceptsInput else { return }
+            acceptsInput = false
+            action(self)
+        } else if [36, 76, 49].contains(event.keyCode) {   // Return, keypad Enter, Space
+            proceed()
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -98,10 +107,16 @@ extension MenuScene {
             lines.append(Line(text: "BEST RUN: \(HighScores.bestLevels) levels cleared, \(HighScores.bestKills) kills",
                               size: 20, color: .systemGreen, font: mono))
         }
-        return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO START") { scene in
+        let startCampaign: (MenuScene) -> Void = { scene in
             let game = GameScene(size: scene.size, levelNumber: 1, runStats: RunStats())
             scene.view?.presentScene(game, transition: .fade(withDuration: 0.6))
         }
+        return MenuScene(size: size, lines: lines, prompt: "ENTER  CAMPAIGN  ·  2  MULTIPLAYER",
+                         shortcuts: [
+                             18: startCampaign,   // 1
+                             19: { scene in scene.view?.presentScene(MenuScene.multiplayer(size: scene.size), transition: .fade(withDuration: 0.4)) },   // 2
+                         ],
+                         onContinue: startCampaign)
     }
 }
 
@@ -148,5 +163,26 @@ extension MenuScene {
         return MenuScene(size: size, lines: lines, prompt: "PRESS ENTER TO CONTINUE") { scene in
             scene.view?.presentScene(MenuScene.title(size: scene.size), transition: .fade(withDuration: 0.6))
         }
+    }
+}
+
+extension MenuScene {
+    static func multiplayer(size: CGSize) -> MenuScene {
+        let mono = "Menlo-Bold"
+        let lines = [
+            Line(text: "MULTIPLAYER", size: 72, color: NSColor(calibratedRed: 0.9, green: 0.3, blue: 0.15, alpha: 1)),
+            Line(text: "Two players, two Macs, one city. Take all of the other's lives.", size: 22),
+            Line(text: " ", size: 10),
+            Line(text: "H  Host a match and get a room code", size: 20, color: .lightGray, font: mono),
+            Line(text: "J  Join a match with a code", size: 20, color: .lightGray, font: mono),
+            Line(text: "ESC  Back", size: 20, color: .lightGray, font: mono),
+        ]
+        return MenuScene(size: size, lines: lines, prompt: "H  HOST  ·  J  JOIN",
+                         shortcuts: [
+                             4: { $0.view?.presentScene(LobbyScene(size: $0.size, role: .host), transition: .fade(withDuration: 0.4)) },    // H
+                             38: { $0.view?.presentScene(LobbyScene(size: $0.size, role: .guest), transition: .fade(withDuration: 0.4)) },  // J
+                             53: { $0.view?.presentScene(MenuScene.title(size: $0.size), transition: .fade(withDuration: 0.4)) },           // Esc
+                         ],
+                         onContinue: { $0.view?.presentScene(LobbyScene(size: $0.size, role: .host), transition: .fade(withDuration: 0.4)) })
     }
 }
