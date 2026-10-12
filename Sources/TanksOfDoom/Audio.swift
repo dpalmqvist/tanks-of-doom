@@ -1,4 +1,8 @@
+#if canImport(AVFoundation)
 import AVFoundation
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// Tiny synthesizer: every sound effect is generated in code at startup.
@@ -9,16 +13,18 @@ final class Audio {
     }
 
     static let shared = Audio()
+    private static let sampleRate = 44_100.0
 
+    #if canImport(AVFoundation)
     private let engine = AVAudioEngine()
-    private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
+    private let format = AVAudioFormat(standardFormatWithSampleRate: Audio.sampleRate, channels: 1)!
     private var players: [AVAudioPlayerNode] = []
     private var buffers: [Sound: AVAudioPCMBuffer] = [:]
     private var nextPlayer = 0
     private var isReady = false
 
     private init() {
-        for sound in Sound.allCases { buffers[sound] = synthesize(sound) }
+        for sound in Sound.allCases { buffers[sound] = makeBuffer(synthesize(sound)) }
         for _ in 0..<16 {
             let player = AVAudioPlayerNode()
             engine.attach(player)
@@ -44,7 +50,30 @@ final class Audio {
         if !player.isPlaying { player.play() }
     }
 
-    private func synthesize(_ sound: Sound) -> AVAudioPCMBuffer {
+    private func makeBuffer(_ samples: [Float]) -> AVAudioPCMBuffer {
+        let frames = AVAudioFrameCount(samples.count)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        let data = buffer.floatChannelData![0]
+        for (i, sample) in samples.enumerated() { data[i] = sample }
+        return buffer
+    }
+    #else
+    private let mixer = SoundMixer(sampleRate: Int(Audio.sampleRate), voices: 16, volume: 0.6)
+    private var clips: [Sound: Int] = [:]
+
+    private init() {
+        guard let mixer else { return }
+        for sound in Sound.allCases { clips[sound] = mixer.load(synthesize(sound)) }
+    }
+
+    func play(_ sound: Sound, volume: Float = 1) {
+        guard let mixer, volume > 0.02, let clip = clips[sound] else { return }
+        mixer.play(clip, volume: volume)
+    }
+    #endif
+
+    private func synthesize(_ sound: Sound) -> [Float] {
         let tau = 2 * Double.pi
         switch sound {
         case .cannon:
@@ -93,20 +122,18 @@ final class Audio {
         }
     }
 
-    /// Renders `sample(time, lowPassedNoise)` into a mono buffer.
-    private func render(duration: Double, cutoff: Double, _ sample: (Double, Double) -> Double) -> AVAudioPCMBuffer {
-        let rate = format.sampleRate
-        let frames = AVAudioFrameCount(duration * rate)
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
-        buffer.frameLength = frames
-        let data = buffer.floatChannelData![0]
+    /// Renders `sample(time, lowPassedNoise)` into mono samples.
+    private func render(duration: Double, cutoff: Double, _ sample: (Double, Double) -> Double) -> [Float] {
+        let rate = Audio.sampleRate
+        let frames = Int(duration * rate)
         var rng = SeededRandom(seed: 0xA0D10)
         let alpha = min(1, 2 * Double.pi * cutoff / rate)
         var noise = 0.0
-        for i in 0..<Int(frames) {
+        var samples = [Float](repeating: 0, count: frames)
+        for i in 0..<frames {
             noise += alpha * (Double.random(in: -1...1, using: &rng) - noise)
-            data[i] = Float(max(-1, min(1, sample(Double(i) / rate, noise))))
+            samples[i] = Float(max(-1, min(1, sample(Double(i) / rate, noise))))
         }
-        return buffer
+        return samples
     }
 }

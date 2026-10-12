@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// A tank: a hull that drives and a turret that aims independently.

@@ -1,16 +1,24 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// All game art, drawn with Core Graphics at launch. Tanks and soldiers face +x.
 enum Textures {
     static func render(_ size: CGSize, _ draw: @escaping (CGContext, CGSize) -> Void) -> SKTexture {
+        #if canImport(AppKit)
         let image = NSImage(size: size, flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             draw(ctx, size)
             return true
         }
         return SKTexture(image: image)
+        #else
+        return SKTexture(size: size, drawing: draw)
+        #endif
     }
 
     static func color(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor {
@@ -277,7 +285,11 @@ enum Textures {
 
     static func radialGradient(size: CGFloat, inner: CGColor, outer: CGColor) -> SKTexture {
         render(CGSize(width: size, height: size)) { ctx, _ in
+            #if canImport(AppKit)
             let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [inner, outer] as CFArray, locations: [0, 1])!
+            #else
+            let gradient = CGGradient(colors: [inner, outer], locations: [0, 1])
+            #endif
             let c = CGPoint(x: size / 2, y: size / 2)
             ctx.drawRadialGradient(gradient, startCenter: c, startRadius: 0, endCenter: c, endRadius: size / 2, options: [])
         }

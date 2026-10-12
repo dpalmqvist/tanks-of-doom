@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
 
@@ -41,3 +42,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
 }
+#endif

@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 final class PickupNode: SKSpriteNode {

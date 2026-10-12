@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// Draws the ground tile map and one sprite per building, and keeps them in sync with damage.
