@@ -4,7 +4,7 @@
 
 # Tanks of Doom
 
-A top-down tank shooter for macOS, written in Swift with SpriteKit. Every level is a freshly generated, war-torn city. You have one tank, very little fuel, and no friends.
+A top-down tank shooter for macOS and Linux, written in Swift with SpriteKit. Every level is a freshly generated, war-torn city. You have one tank, very little fuel, and no friends.
 
 ## The Story So Far
 
@@ -41,10 +41,20 @@ Ready-built versions are on the [Releases page](https://github.com/dpalmqvist/ta
 
 ### Requirements
 
+On **macOS**:
+
 - macOS 14 (Sonoma) or newer
 - Xcode 16 or newer (or a Swift 6 toolchain), for `swift build`
 
-There are no third-party dependencies and no asset files. All art and sound are generated in code when the game starts.
+On **Linux**:
+
+- A Swift 6 toolchain from [swift.org](https://www.swift.org/install/linux/)
+- SDL2 and SDL2_ttf development files, plus fontconfig (`fc-match`):
+  - Debian/Ubuntu: `sudo apt install libsdl2-dev libsdl2-ttf-dev fontconfig`
+  - Fedora: `sudo dnf install SDL2-devel SDL2_ttf-devel fontconfig`
+  - Arch: `sudo pacman -S sdl2-compat sdl2_ttf fontconfig`
+
+There are no third-party Swift dependencies and no asset files. All art and sound are generated in code when the game starts.
 
 ### Build and Run
 
@@ -78,7 +88,8 @@ swift test                   # run the unit tests for the game logic
 | Pause | **Esc** |
 | Toggle minimap size | **M** |
 | Abandon tank (only when out of fuel) | **R** |
-| Quit | **Cmd-Q** |
+| Quit | **Cmd-Q** (macOS), **Ctrl-Q** (Linux) |
+| Toggle fullscreen (Linux) | **F11** |
 
 **Aiming:** by default the turret aims itself at the nearest threat it can see. Enemy tanks come first, then soldiers in windows. Red brackets mark the target, and a red ring marks it on the minimap. Press **Tab** to switch targets. **Q/E** take over by hand, and auto-aim resumes 3 seconds after you let go.
 
@@ -101,9 +112,11 @@ Every level adds more enemy tanks with thicker armor, faster driving and quicker
 
 ## For Developers
 
-- **Skip the title screen:** `TANKS_START_LEVEL=3 swift run TanksOfDoom` starts straight at level 3. In this mode the window opens behind your other windows without taking focus, so click on it before playing.
+- **Skip the title screen:** `TANKS_START_LEVEL=3 swift run TanksOfDoom` starts straight at level 3. On macOS the window then opens behind your other windows without taking focus, so click on it before playing.
 - **Project layout:**
   - `Sources/TanksCore/` holds the pure game logic, with no SpriteKit: seeded city generator, A* pathfinding, line of sight, weapon and damage rules, tank stats, enemy AI and target selection. It's covered by the tests in `Tests/TanksCoreTests/`.
-  - `Sources/TanksOfDoom/` is the macOS app: window, SpriteKit scenes, tanks, soldiers, projectiles, HUD, minimap, procedural textures and synthesized sound.
+  - `Sources/TanksOfDoom/` is the game itself: window, SpriteKit scenes, tanks, soldiers, projectiles, HUD, minimap, procedural textures and synthesized sound. The same code builds on both platforms; the few platform-specific spots are marked with `#if canImport(AppKit)`.
+  - `Sources/LinuxSpriteKit/` is used only on Linux. It implements the part of SpriteKit the game uses (plus `NSColor`, `NSEvent` and a small Core Graphics rasterizer for the textures) on top of SDL2. Keyboard events carry macOS key codes, so input handling is shared too. It builds to an empty module on macOS. `Sources/CSDL2/` exposes the SDL2 C headers to Swift.
+- **Linux notes:** the window is a native Wayland or X11 client. It renders at the display's pixel density and uses vsync. Your best run is saved in `~/.config/TanksOfDoom.plist`.
 - **Design docs:** the design spec and implementation plan live in `docs/superpowers/`.
 - **Publishing a release:** push a version tag (`git tag v1.0.0 && git push origin v1.0.0`). The `Release` GitHub Actions workflow runs the tests, builds a universal `Tanks of Doom.app` with `scripts/package-app.sh`, and attaches the zip to a new GitHub release. Run `scripts/package-app.sh 1.0.0` to build the same zip locally in `dist/`.

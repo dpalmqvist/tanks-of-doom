@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
 
@@ -10,3 +11,4 @@ final class GameView: SKView {
     override func keyUp(with event: NSEvent) { scene?.keyUp(with: event) }
     override func mouseDown(with event: NSEvent) { scene?.mouseDown(with: event) }
 }
+#endif

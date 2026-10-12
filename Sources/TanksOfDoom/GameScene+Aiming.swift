@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// Red corner brackets drawn around the auto-aim target.

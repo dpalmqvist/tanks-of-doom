@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 
 /// Short-lived visual effects added to the world layer.
 final class Effects {

@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 
 extension SKLabelNode {
     static func make(_ text: String, size: CGFloat, color: NSColor = .white, font: String = "Impact") -> SKLabelNode {

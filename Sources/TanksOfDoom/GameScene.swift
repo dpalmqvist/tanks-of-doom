@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 final class GameScene: SKScene {
@@ -53,11 +57,14 @@ final class GameScene: SKScene {
         guard !isSetUp else { return }
         isSetUp = true
         buildWorld()
+        #if canImport(AppKit)
         // Keys released while the window is in the background never arrive; forget them.
+        // (On Linux the view sends key-ups for held keys when the window loses focus.)
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                 object: view.window, queue: .main) { [weak self] _ in
             self?.input = InputState()
         }
+        #endif
     }
 
     override func willMove(from view: SKView) {
@@ -110,6 +117,20 @@ final class GameScene: SKScene {
         updateCamera(dt: dt)
         updateHUD()
         checkLevelEnd(dt: dt)
+    }
+
+    // Overrides live in the class body: Linux has no Objective-C runtime, so extensions can't override.
+    override func keyDown(with event: NSEvent) {
+        setKey(event.keyCode, down: true)
+        if !event.isARepeat { handleKeyPress(event.keyCode) }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        setKey(event.keyCode, down: false)
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        hud?.layout(size: size)
     }
 
     func shake(_ magnitude: CGFloat, duration: Double) {

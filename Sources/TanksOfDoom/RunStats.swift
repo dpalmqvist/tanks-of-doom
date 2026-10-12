@@ -21,6 +21,8 @@ enum HighScores {
         if better {
             defaults.set(run.levelsCleared, forKey: "bestLevels")
             defaults.set(run.kills, forKey: "bestKills")
+            // Linux's Foundation only writes defaults to disk when asked (macOS also saves on its own).
+            defaults.synchronize()
         }
         return better
     }

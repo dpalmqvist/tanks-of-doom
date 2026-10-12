@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// A soldier inside a building. Invisible and unhittable unless exposed at a window.

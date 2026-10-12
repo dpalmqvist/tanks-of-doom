@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 import TanksCore
 
 /// One pixel per tile, scaled up. Shows the player and currently spotted enemy tanks — never caches.

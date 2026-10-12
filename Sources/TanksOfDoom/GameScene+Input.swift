@@ -1,12 +1,11 @@
+#if canImport(AppKit)
 import AppKit
 import SpriteKit
+#else
+import LinuxSpriteKit
+#endif
 
 extension GameScene {
-    override func keyDown(with event: NSEvent) {
-        setKey(event.keyCode, down: true)
-        if !event.isARepeat { handleKeyPress(event.keyCode) }
-    }
-
     func handleKeyPress(_ code: UInt16) {
         switch code {
         case 46: hud.toggleMinimap()   // M
@@ -16,10 +15,6 @@ extension GameScene {
         case 12, 14: turretAim.manualInput()   // Q, E
         default: break
         }
-    }
-
-    override func keyUp(with event: NSEvent) {
-        setKey(event.keyCode, down: false)
     }
 
     func setKey(_ code: UInt16, down: Bool) {
